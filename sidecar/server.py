@@ -88,11 +88,15 @@ class SketchStore:
                 return
             self._write_unlocked([default_sketch()])
 
-    def list(self, instance_id: str | None = None) -> list[dict]:
+    def list(self, instance_id: str | None = None, include_all: bool = False) -> list[dict]:
         with self.lock:
             sketches = self._read_unlocked()
-            if instance_id:
-                sketches = [item for item in sketches if item.get("instance_id") == instance_id]
+            if not include_all and instance_id:
+                sketches = [
+                    item for item in sketches
+                    if item.get("instance_id") == instance_id
+                    or instance_id in (item.get("linked_instances") or [])
+                ]
             return sorted(sketches, key=lambda item: item.get("updated_at", ""), reverse=True)
 
     def get(self, sketch_id: str) -> dict | None:
@@ -132,6 +136,14 @@ class SketchStore:
             raise ValueError("Instance ID is required")
         with self.lock:
             sketches = self._read_unlocked()
+            # An explicit link to a shared sketch (multi-instance sync) wins over
+            # the instance's own sketch, so several plug-ins can edit one sketch.
+            linked = next(
+                (item for item in sketches if instance_id in (item.get("linked_instances") or [])),
+                None,
+            )
+            if linked is not None:
+                return linked
             owned = [item for item in sketches if item.get("instance_id") == instance_id]
             if owned:
                 return max(owned, key=lambda item: item.get("updated_at", ""))
@@ -153,6 +165,36 @@ class SketchStore:
                 "bpm": 120,
                 "instance_id": instance_id,
             })
+
+    def bind_instance(self, instance_id: str, sketch_id: str | None) -> dict | None:
+        """Link an instance to a shared sketch (or unlink when sketch_id is None).
+
+        Returns the sketch the instance now resolves to, or None when a target
+        sketch id was given but no such sketch exists.
+        """
+        instance_id = str(instance_id or "").strip()
+        if not instance_id:
+            raise ValueError("Instance ID is required")
+        with self.lock:
+            sketches = self._read_unlocked()
+            # Drop any previous link for this instance so links stay exclusive.
+            for item in sketches:
+                links = item.get("linked_instances")
+                if links and instance_id in links:
+                    item["linked_instances"] = [x for x in links if x != instance_id]
+            target = None
+            if sketch_id:
+                target = next((item for item in sketches if item.get("id") == sketch_id), None)
+                if target is None:
+                    return None
+                links = target.setdefault("linked_instances", [])
+                if instance_id not in links:
+                    links.append(instance_id)
+            self._write_unlocked(sketches)
+        if target is not None:
+            return target
+        # Unlinked: fall back to the instance's own (or a fresh) sketch.
+        return self.get_or_create_for_instance(instance_id)
 
     def update(self, sketch_id: str, payload: dict) -> dict | None:
         with self.lock:
@@ -277,7 +319,8 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True, "service": "harmony-canvas-sidecar"})
             return
         if parts == ["api", "sketches"]:
-            self.send_json(self.store.list(query.get("instance", [None])[0]))
+            include_all = query.get("all", [None])[0] in ("1", "true", "yes")
+            self.send_json(self.store.list(query.get("instance", [None])[0], include_all=include_all))
             return
         if len(parts) == 4 and parts[:2] == ["api", "instances"] and parts[3] == "sketch":
             try:
@@ -314,6 +357,18 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
             return
         if parts == ["api", "sketches"]:
             self.send_json(self.store.create(payload), HTTPStatus.CREATED)
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "instances"] and parts[3] == "bind":
+            try:
+                sketch_id = str(payload.get("sketch_id") or "").strip() or None
+                result = self.store.bind_instance(parts[2], sketch_id)
+            except ValueError as error:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, str(error))
+                return
+            if result is None:
+                self.send_error_json(HTTPStatus.NOT_FOUND, "Эскиз не найден")
+                return
+            self.send_json(result)
             return
         if len(parts) == 4 and parts[:2] == ["api", "sketches"]:
             sketch = self.store.get(parts[2])

@@ -36,28 +36,41 @@ MIDI BRIDGE — Monitor In
 INSTRUMENT / RECORDING TRACK
 ```
 
-## Voices and per-channel MIDI routing
+## Voices and per-instance output
 
 The editor supports up to four melody voices plus the chord lane. Pick the
 active voice in the "Голос" bar (or press 1–4): the active voice keeps its
 harmonic-role colours and is the only one you can edit, while the other voices
 stay visible but greyed and locked.
 
-During DAW playback each part is sent on its own MIDI channel, so you can point
-separate Ableton instrument tracks at each one:
+The "Выводит этот инстанс" bar decides which parts this plug-in instance sends
+during DAW playback — the chords and each voice have an on/off toggle. That
+choice is remembered per instance (in the WebView store), so it survives
+reopening the plug-in. Muting a part also silences it in the built-in preview.
 
-```text
-Chords   → MIDI channel 1
-Voice 1  → MIDI channel 2
-Voice 2  → MIDI channel 3
-Voice 3  → MIDI channel 4
-Voice 4  → MIDI channel 5
-```
+Each part is emitted on its own MIDI channel (chords → Ch 1, voice N → Ch N+1).
+That per-channel split works for direct routing in Logic Pro 11, Cubase and
+Reaper. **Ableton Live is different:** it merges all internally-routed MIDI onto
+one channel, so you cannot split one instance's output to several instruments by
+channel there — the same limitation Scaler documents for Ableton.
 
-On each receiving Ableton track set `MIDI From → Harmony Canvas → Ch. N`. The
-"Вывод · MIDI-каналы" bar has mute toggles for the chords and each voice, so you
-can audition or send one part alone (or several together) without changing the
-Ableton routing. Muting a part also silences it in the built-in preview.
+### Routing parts to separate instruments in Ableton
+
+Because Ableton collapses channels, use one Harmony Canvas instance per
+instrument, all sharing a single sketch:
+
+1. Add a Harmony Canvas instance on each instrument track (or a MIDI-source
+   track feeding it), plus the one you compose in.
+2. In every extra instance, open the "Эскиз" picker in the voices bar and select
+   the sketch you are composing in — that instance now edits the **same shared
+   sketch**, and edits sync live between instances.
+3. In each instance's "Выводит этот инстанс" bar, leave only that instance's
+   part enabled (e.g. one instance outputs chords, another outputs voice 2).
+4. Point each instrument track's `MIDI From` at its Harmony Canvas instance.
+
+This mirrors Scaler's multi-instance sync workflow and is the reliable way to
+drive different instruments live from one composition inside Ableton. For a
+one-off split you can instead drag/export each part as its own MIDI clip.
 
 ## Important handoff note
 

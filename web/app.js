@@ -3969,7 +3969,9 @@ async function createLabSketch() {
 async function loadLab() {
   const container = document.getElementById("lab-content");
   if (!container) return;
-  container.innerHTML = `<div class="empty">Загружаю эскизы…</div>`;
+  loadLabOutputState();
+  const firstPaint = !document.getElementById("lab-score");
+  if (firstPaint) container.innerHTML = `<div class="empty">Загружаю эскизы…</div>`;
   try {
     let sketches;
     if (labInstanceId) {
@@ -3979,6 +3981,8 @@ async function loadLab() {
     } else {
       sketches = await api("/sketches");
     }
+    // All sketches across instances feed the "share sketch" picker.
+    try { window.labAllSketches = await api("/sketches?all=1"); } catch { window.labAllSketches = sketches; }
     if (!currentSketchId && sketches.length) currentSketchId = sketches[0].id;
     if (!currentSketchId) {
       container.innerHTML = `<section class="lab-empty panel"><p class="eyebrow">COMPOSITION LAB</p><h2>Начните с музыкального фрагмента</h2><p>Введите прогрессию, добавьте мелодию или прикрепите MIDI. Эскиз не обязан быть готовым демо.</p><button class="primary" onclick="createLabSketch()">Создать первый эскиз</button></section>`;
@@ -3991,8 +3995,70 @@ async function loadLab() {
       api(`/sketches/${currentSketchId}/advice?selected_index=${selected}${labPaletteQuery()}`),
     ]);
     window.labSelectedChordIndex = advice.selected_index < 0 ? null : advice.selected_index;
+    window.labSketchVersion = sketch.updated_at;
     renderLab(container, sketches, sketch, advice);
-  } catch (error) { container.innerHTML = `<div class="empty">${esc(error.message)}</div>`; }
+    startLabSyncPoll();
+  } catch (error) { if (firstPaint) container.innerHTML = `<div class="empty">${esc(error.message)}</div>`; }
+}
+
+// ── Multi-instance: shared sketch link and live sync ────────────────────────
+// Several plug-in instances can edit one shared sketch (like Scaler's multi-
+// instance sync). Each instance still outputs its own chosen parts, so one
+// instance feeds the chord instrument and another feeds a melody voice.
+
+function labOutputStorageKey() { return `hc-output-${labInstanceId || "default"}`; }
+
+function loadLabOutputState() {
+  if (window.labOutputLoaded) return;
+  window.labOutputLoaded = true;
+  try {
+    const raw = localStorage.getItem(labOutputStorageKey());
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    window.labChordsMuted = !!saved.chordsMuted;
+    window.labVoiceMuteState = Object.assign({ 1: false, 2: false, 3: false, 4: false }, saved.voiceMutes || {});
+  } catch {}
+}
+
+function saveLabOutputState() {
+  try {
+    localStorage.setItem(labOutputStorageKey(), JSON.stringify({
+      chordsMuted: !!window.labChordsMuted, voiceMutes: labVoiceMutes(),
+    }));
+  } catch {}
+}
+
+/** Poll the shared sketch; reload when another instance changed it. */
+function startLabSyncPoll() {
+  if (window.labSyncTimer) return;
+  window.labSyncTimer = setInterval(async () => {
+    if (!currentSketchId || !document.getElementById("lab-score")) return;
+    // Never interrupt an active drag, an open field or a fresh local edit.
+    if (window.labPointerBusy) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) return;
+    if (Date.now() - (window.labLastLocalEdit || 0) < 1600) return;
+    try {
+      const sketch = await api(`/sketches/${currentSketchId}`);
+      if (sketch?.updated_at && sketch.updated_at !== window.labSketchVersion) {
+        window.labSketchVersion = sketch.updated_at;
+        await loadLab();
+      }
+    } catch {}
+  }, 1500);
+}
+
+async function bindLabSketch(sketchId) {
+  if (!labInstanceId) return toast("Связывание доступно только внутри плагина");
+  try {
+    const target = sketchId && sketchId !== "__own__" ? sketchId : null;
+    const sketch = await api(`/instances/${encodeURIComponent(labInstanceId)}/bind`, {
+      method: "POST", body: JSON.stringify({ sketch_id: target }),
+    });
+    currentSketchId = sketch.id;
+    window.labSketchVersion = null;
+    await loadLab();
+    toast(target ? "Инстанс делит общий эскиз" : "Инстанс отвязан — свой эскиз");
+  } catch (error) { toast(error.message); }
 }
 
 function renderLab(container, sketches, sketch, advice) {
@@ -4414,8 +4480,10 @@ function setLabSnap(value) { window.labSnapBeats = Number(value); }
 const LAB_VOICE_COUNT = 4;
 
 function labVoiceMutes() {
-  if (!window.labVoiceMutes) window.labVoiceMutes = { 1: false, 2: false, 3: false, 4: false };
-  return window.labVoiceMutes;
+  // Note: a global `function labVoiceMutes` already occupies window.labVoiceMutes,
+  // so the state is kept under a distinct name to avoid clobbering the function.
+  if (!window.labVoiceMuteState) window.labVoiceMuteState = { 1: false, 2: false, 3: false, 4: false };
+  return window.labVoiceMuteState;
 }
 
 function labVoicesBarHtml(advice) {
@@ -4429,14 +4497,32 @@ function labVoicesBarHtml(advice) {
     return `<button type="button" class="lab-voice-pick lab-voice-${v} ${v === active ? "active" : ""}" onclick="setLabActiveVoice(${v})" aria-pressed="${v === active}" title="Голос ${v}${n ? ` · ${n} нот · клавиша ${v}` : ` · пусто · клавиша ${v}`}"><b>${v}</b><small>${n || "·"}</small></button>`;
   }).join("");
   const chordsMuted = !!window.labChordsMuted;
-  const chordChip = `<button type="button" class="lab-out-chip lab-out-chords ${chordsMuted ? "is-muted" : ""}" onclick="toggleLabChordsMute()" aria-pressed="${!chordsMuted}" title="Аккорды → MIDI-канал 1${chordsMuted ? " · не выводятся" : ""}"><span>Аккорды</span><small>Ch 1</small></button>`;
+  const chordChip = `<button type="button" class="lab-out-chip lab-out-chords ${chordsMuted ? "is-muted" : ""}" onclick="toggleLabChordsMute()" aria-pressed="${!chordsMuted}" title="Этот инстанс ${chordsMuted ? "не выводит" : "выводит"} аккорды (Ch 1 для Logic/Cubase)"><span>Аккорды</span><small>Ch 1</small></button>`;
   const voiceChips = Array.from({ length: LAB_VOICE_COUNT }, (_, i) => {
     const v = i + 1;
     const muted = !!mutes[v];
-    return `<button type="button" class="lab-out-chip lab-voice-${v} ${muted ? "is-muted" : ""}" onclick="toggleLabVoiceMute(${v})" aria-pressed="${!muted}" title="Голос ${v} → MIDI-канал ${v + 1}${muted ? " · не выводится" : ""}"><span>Г${v}</span><small>Ch ${v + 1}</small></button>`;
+    return `<button type="button" class="lab-out-chip lab-voice-${v} ${muted ? "is-muted" : ""}" onclick="toggleLabVoiceMute(${v})" aria-pressed="${!muted}" title="Этот инстанс ${muted ? "не выводит" : "выводит"} голос ${v} (Ch ${v + 1} для Logic/Cubase)"><span>Г${v}</span><small>Ch ${v + 1}</small></button>`;
   }).join("");
   return `<div class="lab-voices-edit"><span class="lab-voices-label">Голос</span>${picks}</div>
-    <div class="lab-voices-out"><span class="lab-voices-label" title="В Ableton: MIDI From → Harmony Canvas → нужный канал">Вывод · MIDI-каналы</span>${chordChip}${voiceChips}</div>`;
+    ${labSharePickerHtml()}
+    <div class="lab-voices-out"><span class="lab-voices-label" title="Отдельный инстанс на каждый инструмент: выключите здесь всё, кроме своей партии, и заведите MIDI From → этот инстанс в Ableton">Выводит этот инстанс</span>${chordChip}${voiceChips}</div>`;
+}
+
+/** Picker to share one sketch across instances (multi-instance routing). */
+function labSharePickerHtml() {
+  if (!labInstanceId) return "";
+  const all = window.labAllSketches || [];
+  const current = all.find(s => s.id === currentSketchId);
+  const linked = !!(current && current.instance_id && current.instance_id !== labInstanceId);
+  const options = all.map(s => {
+    const mine = s.instance_id === labInstanceId;
+    const label = `${s.title || "эскиз"} · ${s.tonic || ""}${mine ? " (свой)" : ""}`;
+    return `<option value="${esc(s.id)}" ${s.id === currentSketchId ? "selected" : ""}>${esc(label)}</option>`;
+  }).join("");
+  return `<label class="lab-share ${linked ? "is-linked" : ""}" title="Один общий эскиз для нескольких инстансов: правки синхронны, а выводимую партию каждый инстанс выбирает сам. Заведите по инстансу на инструмент.">
+    <span class="lab-voices-label">${linked ? "🔗 Общий эскиз" : "Эскиз"}</span>
+    <select onchange="bindLabSketch(this.value)">${options}<option value="__own__">— отвязать (свой эскиз) —</option></select>
+  </label>`;
 }
 
 function labRenderVoicesBar() {
@@ -4452,15 +4538,24 @@ function setLabActiveVoice(voice) {
 function toggleLabVoiceMute(voice) {
   const mutes = labVoiceMutes();
   mutes[voice] = !mutes[voice];
+  saveLabOutputState();
   labRenderVoicesBar();
   syncNativePlaybackTimeline();
 }
 
 function toggleLabChordsMute() {
   window.labChordsMuted = !window.labChordsMuted;
+  saveLabOutputState();
   labRenderVoicesBar();
   syncNativePlaybackTimeline();
 }
+
+// Pause shared-sketch sync while the pointer is actively editing the score,
+// so an incoming reload never interrupts a drag or click.
+document.addEventListener("pointerdown", event => {
+  if (event.target.closest?.(".lab-systems, .lab-voices-bar, .lab-insert, .lab-chord-inspector")) window.labPointerBusy = true;
+}, true);
+document.addEventListener("pointerup", () => { setTimeout(() => { window.labPointerBusy = false; }, 80); }, true);
 
 /** Editor shortcuts, ignored while typing into a field. */
 document.addEventListener("keydown", event => {
@@ -4715,6 +4810,7 @@ function labSetRegion(id, html) {
 }
 
 function applyLabAdvice(advice, { syncChordText = false } = {}) {
+  window.labLastLocalEdit = Date.now();
   window.currentLabAdvice = advice;
   window.labSelectedChordIndex = labClampSelection(advice.chords.length);
   if (syncChordText && typeof advice.chord_input === "string") {
