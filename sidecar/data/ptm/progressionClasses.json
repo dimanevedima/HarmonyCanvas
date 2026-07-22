@@ -1,0 +1,235 @@
+{
+  "_meta": {
+    "source": "ПТМ-26 v5.0, стр. 77 (полный постер «14 классов гармонических прогрессий на все случаи жизни»), продублирован крупно на стр. 78–80",
+    "notation": [
+      "Заглавные римские цифры = мажорные аккорды, строчные = минорные, dim = уменьшённые, aug = увеличенные",
+      "| разделяет такты/полупериоды, || разделяет периоды",
+      "/// = повторение аккорда (доли такта)",
+      "highlighted = строка выделена жёлтым в оригинале (рекомендуемый/типовой вариант)"
+    ],
+    "ocr_confidence": "high"
+  },
+  "progression_classes": [
+    {
+      "class_id": 1,
+      "name": "Одноаккордовые прогрессии",
+      "patterns": [
+        { "label": "На базе одного мажорного аккорда", "roman": "I - I - I - I", "examples": ["C///", "G///"] },
+        { "label": "На базе одного минорного аккорда", "roman": "i - i - i - i", "examples": ["Am///", "Em///"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 2,
+      "name": "Прогрессии со статичной структурой",
+      "patterns": [
+        { "label": "Задержанные (sus) прогрессии — т.н. фоновая «вамп-прогрессия» (1)", "roman": "I - I sus4", "examples": ["C - Csus4", "E - Esus4"] },
+        { "label": "Нисходящие увеличенные (aug) прогрессии", "roman": "I - I aug - I6 - I aug", "examples": ["C - Caug - C6 - Caug"] },
+        { "label": "Нисходящие увеличенные (aug) прогрессии", "roman": "I - I aug - I6 - I7", "examples": ["C - Caug - C6 - C7"] },
+        { "label": "Рок-прогрессия с увеличенным трезвучием (доминанта V+)", "roman": "I - IV - I - V+", "examples": ["C - F - C - Gaug"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 3,
+      "name": "Прогрессии с восходящим или нисходящим басом",
+      "patterns": [
+        { "label": "Восходящий хроматический паттерн", "roman": "I - #I - II - #II", "examples": ["C - C# - D - D#"] },
+        { "label": "Восходящий хроматический паттерн (dim)", "roman": "I dim - #I dim - II dim - #II dim", "examples": ["Cdim - C#dim - Ddim - D#dim"] },
+        { "label": "Восходящий диатонический паттерн", "roman": "I - ii - iii - IV | V - vi - vii dim", "examples": ["C - Dm - Em - F | G - Am - Bdim"] },
+        { "label": "Рок-балладная прогрессия", "roman": "I - iii - IV - V", "examples": ["C - Em - F - G"], "highlighted": true },
+        { "label": "Рок-балладная прогрессия", "roman": "I - iii - V - II", "examples": ["C - Em - G - D"] },
+        { "label": "Стандартные уменьшенные (dim, dim7) прогрессии", "roman": "I - #I dim - IV - V", "examples": ["C - C#dim - F - G"] },
+        { "label": "Стандартные уменьшенные (dim, dim7) прогрессии", "roman": "I - #I dim7 - ii7 - V7", "examples": ["C - C#dim7 - Dm7 - G7"] },
+        { "label": "Прогрессии с побочными уменьшенными аккордами (dim на полтона ниже основного аккорда)", "roman": "I - bIV dim - IV - bV dim - V", "examples": ["C - Edim - F - Gbdim - G"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 4,
+      "name": "Базовые двухаккордовые прогрессии",
+      "patterns": [
+        { "label": "Маж. тоника и доминанта (T-D) — т.н. ионийская прогрессия", "roman": "I - V", "examples": ["C - G", "G - D"] },
+        { "label": "Маж. тоника и доминант 7-аккорд (T-D7) — т.н. фолк-прогрессия", "roman": "I - V7", "examples": ["C - G7"] },
+        { "label": "Мин. тоника и маж. доминанта (t-D) — т.н. прогрессия гармонического минора", "roman": "i - V", "examples": ["Am - E", "Gm - D"] },
+        { "label": "Маж. тоника и маж. субдоминанта (T-S)", "roman": "I - IV", "examples": ["C - F", "D - G", "G - C"] },
+        { "label": "Мажор и параллельный минор — т.н. фоновая «вамп-прогрессия» (2)", "roman": "I - vi", "examples": ["C - Am", "G - Em"] },
+        { "label": "Комбинированные прогрессии", "roman": "I - IV | I - V", "examples": ["C - F | C - G"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 5,
+      "name": "Модальные двухаккордовые прогрессии",
+      "patterns": [
+        { "label": "Мажорная тоника и iii аккорд — т.н. драматическая кинематографическая прогрессия", "roman": "I - iii", "examples": ["C - Em", "F - Am", "G - Bm"], "highlighted": true },
+        { "label": "Прогрессия дорийского лада", "roman": "i - IV", "examples": ["Am - D"] },
+        { "label": "Мажорная тоника и bV аккорд — т.н. космическая кинематографическая прогрессия", "roman": "I - bV", "examples": ["C - Gb"] },
+        { "label": "Минорная тоника и bVII аккорд", "roman": "i - bVII", "examples": ["Am - G", "Dm - C", "Em - D"] },
+        { "label": "Прогрессия миксолидийского лада — т.н. фоновая «вамп-прогрессия» (3)", "roman": "I - bVII", "examples": ["A - G", "D - C", "E - D"] },
+        { "label": "Прогрессия фригийского доминантового лада — т.н. прогрессия фламенко", "roman": "I - bII", "examples": ["E - F"] },
+        { "label": "Прогрессия лидийского лада", "roman": "I - II", "examples": ["A - B", "C - D"] },
+        { "label": "Лидийская поп-рок прогрессия", "roman": "I - II - IV - I", "examples": ["C - D - F - C"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 6,
+      "name": "Золотое правило гармонии",
+      "patterns": [
+        { "label": "В мажоре (T-S-D) — т.н. рок-н-рольная прогрессия", "roman": "I - IV - V - V", "examples": ["C - F - G - G", "G - C - D - D"] },
+        { "label": "В миноре (t-s-D)", "roman": "i - iv - V - V", "examples": ["Am - Dm - E - E"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 7,
+      "name": "Золотая секвенция",
+      "note": "Гармоническая прогрессия, в которой пары аккордов (звенья секвенции) смещаются строго по квартам (кварто-квинтовому кругу). Всегда звучит очень приятно; используется в подавляющем большинстве хитовых песен.",
+      "patterns": [
+        { "label": "Вариант №1", "roman": "vi-ii | V-I | IV-VII dim || III - vi", "examples": ["Am-Dm | G-C | F-Bdim || E - Am"], "highlighted": true },
+        { "label": "Вариации с побочными доминантами (1)", "roman": "vi-II | V-I | IV-II || IV - III - vi", "examples": ["Am-D | G-C | F-D || F - E - Am"] },
+        { "label": "Вариант №2", "roman": "vi-iii | V-ii | IV-I || IV - V - vi", "examples": ["Am-Em | G-Dm | F-C || F - G - Am"] },
+        { "label": "Вариант №2", "roman": "vi-iii | V-ii | IV-I || IV - iii - vi", "examples": ["Am-Em | G-Dm | F-C || F - Em - Am"] },
+        { "label": "Вариации с побочными доминантами (2)", "roman": "vi-III | V-II | IV-I || IV - V - vi", "examples": ["Am-E | G-D | F-C || F - G - Am"] },
+        { "label": "Вариации с побочными доминантами (2)", "roman": "vi-III | V-II | IV-I || IV - III - vi", "examples": ["Am-E | G-D | F-C || F - E - Am"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 8,
+      "name": "Замыкающие и оборотные прогрессии",
+      "patterns": [
+        { "label": "Автентическая каденция (D-T)", "roman": "I - V - IV - V", "examples": ["C - G - F - G", "G - D - C - D"], "highlighted": true },
+        { "label": "Автентическая каденция (D-T)", "roman": "vi - V - IV - V", "examples": ["Am - G - F - G", "Em - D - C - D"] },
+        { "label": "Плагальная (мягкая) каденция (S-T)", "roman": "I - V - IV - IV", "examples": ["C - G - F - F", "G - D - C - C"], "highlighted": true },
+        { "label": "Плагальная (мягкая) каденция (S-T)", "roman": "I - IV - V - IV", "examples": ["C - F - G - F", "G - C - D - C"] },
+        { "label": "Минорная плагальная каденция (S-s-T)", "roman": "IV - iv - I - I", "examples": ["F - Fm - C - C", "D - Dm - A - A"] },
+        { "label": "Андалусская каденция — т.н. каденция фламенко", "roman": "i - bVII - bVI - V", "examples": ["Am - G - F - E", "Em - D - C - B7"] },
+        { "label": "Оборотные каденции (тёрнэраунды)", "roman": "I - I - ii7 - V7", "examples": ["C - C - Dm7 - G7"] },
+        { "label": "Оборотные каденции (тёрнэраунды)", "roman": "I - vi7 - ii7 - V7", "examples": ["C - Am7 - Dm7 - G7"] },
+        { "label": "Оборотные каденции (тёрнэраунды)", "roman": "I - VI7 - II7 - V7", "examples": ["C - A7 - D7 - G7"] },
+        { "label": "Оборотные каденции (тёрнэраунды)", "roman": "iii - vi - ii7 - V7", "examples": ["C мажор: Em - Am - Dm7 - G7", "G мажор: Bm - Em - Am7 - D7"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 9,
+      "name": "Универсальные песенные / эпические прогрессии",
+      "note": "Эти прогрессии используются в подавляющем большинстве хитовых песен",
+      "patterns": [
+        { "label": "Классические песенные прогрессии 50-х — т.н. «оптимистичные», светлые вариации", "roman": "I - vi - IV - V", "examples": ["G - Em - C - D", "C - Am - F - G"], "highlighted": true },
+        { "label": "Классические песенные прогрессии 50-х", "roman": "I - IV - vi - V", "examples": ["C - F - Am - G"] },
+        { "label": "Классические песенные прогрессии 50-х", "roman": "I - IV - V - vi", "examples": ["C - F - G - Am"] },
+        { "label": "Классические песенные прогрессии 50-х", "roman": "I - V - vi - IV", "examples": ["C - G - Am - F"] },
+        { "label": "Современные песенные поп-рок прогрессии — т.н. «чувственные», драматические вариации", "roman": "vi - IV - I - V", "examples": ["Em - C - G - D", "Am - F - C - G"], "highlighted": true },
+        { "label": "Современные песенные поп-рок прогрессии", "roman": "vi - IV - V - I", "examples": ["Am - F - G - C"] },
+        { "label": "Современные песенные поп-рок прогрессии", "roman": "IV - I - V - vi", "examples": ["F - C - G - Am"] },
+        { "label": "Современные песенные поп-рок прогрессии", "roman": "IV - vi | IV - V - I", "examples": ["F - Am | F - G - C"] },
+        { "label": "Современные песенные поп-рок прогрессии", "roman": "V - vi - IV - I", "examples": ["G - Am - F - C"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 10,
+      "name": "Прогрессии классического рока",
+      "patterns": [
+        { "label": "С модальным заимствованием аккорда bVII", "roman": "I - bVII - IV - I", "examples": ["E - D - A - E", "D - C - G - D", "A - G - D - A"] },
+        { "label": "С модальным заимствованием аккорда bVII", "roman": "I - IV - bVII - IV", "examples": ["E - A - D - A", "A - D - G - D"] },
+        { "label": "С модальным заимствованием аккорда bVII", "roman": "I - V - bVII - IV", "examples": ["E - B - D - A", "A - E - G - D"] },
+        { "label": "С модальным заимствованием аккорда bIII", "roman": "I - bIII - IV - I", "examples": ["E - G - A - E"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 11,
+      "name": "Минорные рок и хэви метал прогрессии",
+      "patterns": [
+        { "label": "Основная (эолийская)", "roman": "i - bIII - bVII - i", "examples": ["Em - G - D - Em", "Am - C - G - Am"], "highlighted": true },
+        { "label": null, "roman": "i - bIII - bVII - iv", "examples": ["Am - C - G - Dm"] },
+        { "label": null, "roman": "i - bIII - iv - bVII", "examples": ["Am - C - Dm - G"] },
+        { "label": null, "roman": "bIII - i - iv - bVII", "examples": ["C - Am - Dm - G"] },
+        { "label": null, "roman": "iv - i - bIII - bVII", "examples": ["Dm - Am - C - G"] },
+        { "label": null, "roman": "i - bVII - iv - bIII", "examples": ["Am - G - Dm - C"] },
+        { "label": null, "roman": "iv - bVII - bIII - i", "examples": ["Dm - G - C - Am"] },
+        { "label": null, "roman": "bIII - bVII - iv - i", "examples": ["C - G - Dm - Am"] },
+        { "label": null, "roman": "i - iv - bVI - bVII", "examples": ["Am - Dm - F - G"] },
+        { "label": null, "roman": "iv - bVI - i - bVII", "examples": ["Dm - F - Am - G"] },
+        { "label": "С заимствованным мажорным IV аккордом", "roman": "i - bIII - bVII - IV", "examples": ["Am - C - G - D"] },
+        { "label": "С заимствованным мажорным IV аккордом", "roman": "i - bVI - bVII - IV", "examples": ["Am - F - G - D"] },
+        { "label": "С заимствованным мажорным IV аккордом", "roman": "i - v - bVII - IV", "examples": ["Am - Em - G - D"] },
+        { "label": null, "roman": "i - bVI - bVII - i", "examples": ["Am - F - G - Am"], "highlighted": true },
+        { "label": null, "roman": "i - bVII - iv - v", "examples": ["Am - G - Dm - Em"], "highlighted": true },
+        { "label": null, "roman": "i - bVII - bVI - i", "examples": ["Am - G - F - Am"] },
+        { "label": null, "roman": "i - bVII - bVI - v", "examples": ["Am - G - F - Em"] },
+        { "label": null, "roman": "i - bVII - v - bVI", "examples": ["Am - G - Em - F"] },
+        { "label": null, "roman": "i - bVI - bVII - v", "examples": ["Am - F - G - Em"] },
+        { "label": "Вариация с мажорным V аккордом", "roman": "i - bVI - V - i", "examples": ["Am - F - E - Am"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 12,
+      "name": "Стандартные прогрессии",
+      "patterns": [
+        { "label": "Стандартные прогрессии №1", "roman": "I - vi - ii - V", "examples": ["G - Em - Am - D", "C - Am - Dm - G"], "highlighted": true },
+        { "label": "Стандартные прогрессии №1", "roman": "vi - I - ii - V", "examples": ["Am - C - Dm - G"] },
+        { "label": "Стандартные прогрессии №1", "roman": "vi - I - V - ii", "examples": ["Am - C - G - Dm"] },
+        { "label": "Стандартные прогрессии №1", "roman": "ii - vi - I - V", "examples": ["Dm - Am - C - G"] },
+        { "label": "Стандартные прогрессии №1", "roman": "I - V - ii - vi", "examples": ["C - G - Dm - Am"] },
+        { "label": "Вариация с побочными доминантами (с мажорным VI аккордом)", "roman": "I - VI - ii - V", "examples": ["C - A - Dm - G", "G - E - Am - D"] },
+        { "label": "Вариация с мажорным VI и II аккордом", "roman": "I - VI - II - V", "examples": ["C - A - D - G", "G - E - A - D"] },
+        { "label": "Стандартные прогрессии №2", "roman": "I - V - ii - IV", "examples": ["D - A - Em - G", "G - D - Am - C"], "highlighted": true },
+        { "label": "Стандартные прогрессии №2", "roman": "ii - V - I - IV", "examples": ["Dm - G - C - F", "Am - D - G - C"] },
+        { "label": "Стандартные прогрессии №2", "roman": "I - IV - ii - V", "examples": ["C - F - Dm - G"], "highlighted": true },
+        { "label": "Стандартные прогрессии №2", "roman": "I - ii - IV - V", "examples": ["C - Dm - F - G"] },
+        { "label": "С модальным заимствованием аккордов ii и IV", "roman": "I - ii - IV - I", "examples": ["D - Em - G - D", "G - Am - C - G"] },
+        { "label": "С модальным заимствованием аккордов ii и IV", "roman": "ii - IV - I - I", "examples": ["Em - G - D - D", "Am - C - G - G"] },
+        { "label": "Прогрессия с двойной доминантой (III как побочная доминанта к vi)", "roman": "IV - V - III - vi", "examples": ["F - G - E - Am"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 13,
+      "name": "Блюзовые и джазовые прогрессии",
+      "patterns": [
+        { "label": "8 тактовый блюз", "roman": "I-I - IV-IV | I-V - I-I", "examples": ["C - C - F - F | C - G - C - C"] },
+        { "label": "12 тактовый блюз", "roman": "I-I-I-I - IV-IV | I-I - V-IV - I-I", "examples": ["D/// - G/ | D/ - A - G - D/", "G/// - C/ | G/ - D - C - G/"] },
+        { "label": "Минорный 12 тактовый блюз", "roman": "i-i-i-i - iv-iv | i-i - v-iv - i-i", "examples": ["Am/// - Dm/ | Am/ - Em-Dm - Am/"] },
+        { "label": "Джазовая прогрессия", "roman": "ii - V - I - I", "examples": ["Dm7 - G7 - C - C"] },
+        { "label": "Джаз-роковая (фьюжн) прогрессия", "roman": "ii - V - I - vi", "examples": ["Dm - G - C - Am"] },
+        { "label": "12 тактовый блюз с быстрой сменой (IV уже во 2-м такте)", "roman": "I-IV-I-I - IV-IV | I-I - V-IV - I-V", "examples": ["C - F - C - C - F - F | C - C - G - F - C - G"] },
+        { "label": "Джазовый тёрнэраунд", "roman": "iii - ii - V - I", "examples": ["Em - Dm - G - C"] },
+        { "label": "Хроматическая медиантовая прогрессия (джазовый бридж, напр. «Have You Met Miss Jones»)", "roman": "I - bVII - vi - bIII - ii - bVI - V - bII", "examples": ["C - Bb - Am - Eb - Dm - Ab - G - Db"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 14,
+      "name": "Классические и старинные прогрессии",
+      "patterns": [
+        { "label": "Канон Пахельбеля (упрощённый поп-вариант, IV вместо iii)", "roman": "I - V - vi - IV | I - IV - I - V", "examples": ["C - G - Am - F | C - F - C - G", "G - D - Em - C | G - C - G - D"] },
+        { "label": "Канон Пахельбеля (оригинальная 8-тактовая последовательность)", "roman": "I - V - vi - iii - IV - I - IV - V", "examples": ["C - G - Am - Em - F - C - F - G"] },
+        { "label": "Прогрессия 16 тактовой Фолии (La Folia) — гармоническая модель, с XVII века использовалась европейскими композиторами для построения вариаций", "roman": "i - V7 - i - bVII | III - bVII - i - V7 | i - V7 - i - bVII | III - bVII - (i-V7) - i", "examples": ["Am - E7 - Am - G | C - G - Am - E7 | Am - E7 - Am - G | C - G - (Am-E7) - Am"] },
+        { "label": "Прогрессия «современного» Пассамеццо (Passamezzo moderno) — итальянский танец эпохи Возрождения (XVI век), модель для вариаций", "roman": "I - IV - I - V | I - IV - (I-V) - I", "examples": ["C - F - C - G | C - F - (C-G) - C"] },
+        { "label": "Прогрессия «старинного» Пассамеццо (Passamezzo antico)", "roman": "i - bVII - i - V | III - bVII - (i-V) - i", "examples": ["Am - G - Am - E | C - G - (Am-E) - Am"] }
+      ],
+      "source_page": 77
+    },
+    {
+      "class_id": 15,
+      "name": "Минорные каденции и вампы",
+      "note": "Короткие 2–4-аккордовые минорные обороты, не вошедшие в основной постер, но часто встречающиеся отдельно",
+      "patterns": [
+        { "label": "Минорная двухаккордовая (t-D в натуральном миноре)", "roman": "i - v", "examples": ["Am - Em"] },
+        { "label": "Натуральный минорный каданс", "roman": "i - iv - v", "examples": ["Am - Dm - Em"] },
+        { "label": "Минорный вамп", "roman": "i - iv - i", "examples": ["Am - Dm - Am"] },
+        { "label": "Восходящая каденция к тонике", "roman": "VI - VII - i", "examples": ["F - G - Am"] },
+        { "label": "Андалузская каденция с доминантсептаккордом", "roman": "i - VII - VI - V7", "examples": ["Am - G - F - E7"] },
+        { "label": null, "roman": "i - III - VII - VI", "examples": ["Am - C - G - F"] },
+        { "label": "Гармонический минор с уменьшенным ii", "roman": "i - ii dim - V - i", "examples": ["Am - Bdim - E - Am"] }
+      ],
+      "source_page": null
+    }
+  ]
+}

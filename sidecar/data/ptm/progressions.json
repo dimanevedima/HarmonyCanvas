@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "source": "ПТМ-26 v5.0, стр. 76 — шпаргалка «27 простых и красивых аккордовых прогрессий» (Олег Левашов, No Rust TV, версия 1.2)",
+    "notes_from_slide": [
+      "Римские цифры = ступени лада, на которых построены аккорды; позволяют транспонировать гармонию в любую тональность",
+      "Цветовая кодировка указывает на родственные прогрессии, которые легко объединяются, перемешиваются и заменяют друг друга",
+      "Родственные прогрессии позволяют разрабатывать (варьировать) музыкальный материал и создавать разные «оттенки» определённого настроения",
+      "Любые из показанных прогрессий можно комбинировать между собой, модифицировать, транспонировать, удалять аккорды, играть задом наперёд и т.п.",
+      "Аккорды выписаны как ориентир для тональности До мажор / Ля минор"
+    ],
+    "ocr_confidence": "high"
+  },
+  "progressions": [
+    { "id": 1,  "group": "красная",    "roman": "I - IV - vi - V",              "example_c_am": "C - F - Am - G",            "mood_or_use": null, "source_page": 76 },
+    { "id": 2,  "group": "красная",    "roman": "I - IV - V - vi",              "example_c_am": "C - F - G - Am",            "mood_or_use": null, "source_page": 76 },
+    { "id": 3,  "group": "красная",    "roman": "I - V - vi - IV",              "example_c_am": "C - G - Am - F",            "mood_or_use": null, "source_page": 76 },
+    { "id": 4,  "group": "красная",    "roman": "I - vi - IV - V",              "example_c_am": "C - Am - F - G",            "mood_or_use": null, "source_page": 76 },
+    { "id": 5,  "group": "жёлтая",     "roman": "vi - IV - V - I",              "example_c_am": "Am - F - G - C",            "mood_or_use": null, "source_page": 76 },
+    { "id": 6,  "group": "жёлтая",     "roman": "vi - IV - I - V",              "example_c_am": "Am - F - C - G",            "mood_or_use": null, "source_page": 76 },
+    { "id": 7,  "group": "зелёная",    "roman": "i - bVII - iv - bIII",         "example_c_am": "Am - G - Dm - C",           "mood_or_use": null, "source_page": 76 },
+    { "id": 8,  "group": "зелёная",    "roman": "i - bIII - iv - bVII",         "example_c_am": "Am - C - Dm - G",           "mood_or_use": null, "source_page": 76 },
+    { "id": 9,  "group": "зелёная",    "roman": "bIII - i - iv - bVII",         "example_c_am": "C - Am - Dm - G",           "mood_or_use": null, "source_page": 76 },
+    { "id": 10, "group": "зелёная",    "roman": "bIII - bVII - iv - i",         "example_c_am": "C - G - Dm - Am",           "mood_or_use": null, "source_page": 76 },
+    { "id": 11, "group": "голубая",    "roman": "iv - i - bIII - bVII",         "example_c_am": "Dm - Am - C - G",           "mood_or_use": null, "source_page": 76 },
+    { "id": 12, "group": "голубая",    "roman": "iv - bVI - i - bVII",          "example_c_am": "Dm - F - Am - G",           "mood_or_use": null, "source_page": 76 },
+    { "id": 13, "group": "голубая",    "roman": "iv - bVII - bIII - i",         "example_c_am": "Dm - G - C - Am",           "mood_or_use": null, "source_page": 76 },
+    { "id": 14, "group": "салатовая",  "roman": "I - IV - ii - V",              "example_c_am": "C - F - Dm - G",            "mood_or_use": null, "source_page": 76 },
+    { "id": 15, "group": "салатовая",  "roman": "I - ii - IV - V",              "example_c_am": "C - Dm - F - G",            "mood_or_use": null, "source_page": 76 },
+    { "id": 16, "group": "салатовая",  "roman": "ii - V - I - IV",              "example_c_am": "Dm - G - C - F",            "mood_or_use": null, "source_page": 76 },
+    { "id": 17, "group": "салатовая",  "roman": "ii - IV - vi - V",             "example_c_am": "Dm - F - Am - G",           "mood_or_use": null, "source_page": 76 },
+    { "id": 18, "group": "салатовая",  "roman": "ii - vi - I - V",              "example_c_am": "Dm - Am - C - G",           "mood_or_use": null, "source_page": 76 },
+    { "id": 19, "group": "розовая",    "roman": "i - bVII - v - bVI",           "example_c_am": "Am - G - Em - F",           "mood_or_use": null, "source_page": 76 },
+    { "id": 20, "group": "розовая",    "roman": "i - bVII - bVI - v",           "example_c_am": "Am - G - F - Em",           "mood_or_use": null, "source_page": 76 },
+    { "id": 21, "group": "розовая",    "roman": "i - bVII - iv - v",            "example_c_am": "Am - G - Dm - Em",          "mood_or_use": null, "source_page": 76 },
+    { "id": 22, "group": "золотая",    "roman": "I - iii - IV - V",             "example_c_am": "C - Em - F - G",            "mood_or_use": null, "source_page": 76 },
+    { "id": 23, "group": "золотая",    "roman": "I - iii / I - iii",            "example_c_am": "C - Em / F - Am",           "mood_or_use": null, "source_page": 76 },
+    { "id": 24, "group": "синяя",      "roman": "I - V - IV - V",               "example_c_am": "C - G - F - G",             "mood_or_use": null, "source_page": 76 },
+    { "id": 25, "group": "синяя",      "roman": "vi - V - IV - V",              "example_c_am": "Am - G - F - G",            "mood_or_use": null, "source_page": 76 },
+    { "id": 26, "group": "оранжевая",  "roman": "I - V - vi - IV / I - IV - I - V", "example_c_am": "C - G - Am - F / C - F - C - G", "mood_or_use": "Канон Пахельбеля (см. класс 14)", "source_page": 76 },
+    { "id": 27, "group": "оранжевая",  "roman": "vi-ii / V-I / IV-VIIdim / III-vi", "example_c_am": "Am-Dm / G-C / F-Bdim / E-Am", "mood_or_use": "Золотая секвенция (см. класс 7 и goldenSequence.json)", "source_page": 76 },
+
+    { "id": 28, "group": "хиты",       "roman": "i - bVI - III - bVII",         "example_c_am": "Am - F - C - G",            "mood_or_use": "«What if God Were One of Us» — Joan Osborne", "source_page": null },
+    { "id": 29, "group": "хиты",       "roman": "I - IV - V - I",               "example_c_am": "C - F - G - C",             "mood_or_use": "«Lay Down Sally» — Eric Clapton", "source_page": null },
+    { "id": 30, "group": "хиты",       "roman": "I - ii - iii - IV - V (×4)",   "example_c_am": "C - Dm - Em - F - G (×4)",  "mood_or_use": "«Like a Rolling Stone» — Bob Dylan", "source_page": null },
+    { "id": 31, "group": "хиты",       "roman": "i - V - i - iv",               "example_c_am": "Am - E - Am - Dm",          "mood_or_use": "«Black Magic Woman» — Santana", "source_page": null },
+    { "id": 32, "group": "хиты",       "roman": "i - bVI - iv - bVII",          "example_c_am": "Am - F - Dm - G",           "mood_or_use": "«Mr. Jones» — Counting Crows", "source_page": null },
+
+    { "id": 33, "group": "эпичная",    "roman": "I - V - IV - I",               "example_c_am": "C - G - F - C",             "mood_or_use": "Rock & roll, vintage vibes", "source_page": null },
+    { "id": 34, "group": "эпичная",    "roman": "V - IV - I",                   "example_c_am": "G - F - C",                 "mood_or_use": "Final line / resolution loop", "source_page": null },
+    { "id": 35, "group": "эпичная",    "roman": "I - iii - vi - IV",            "example_c_am": "C - Em - Am - F",           "mood_or_use": "Dreamy, emotional", "source_page": null },
+    { "id": 36, "group": "эпичная",    "roman": "vi - I - vi - V",              "example_c_am": "Am - C - Am - G",           "mood_or_use": "Sad, reflective, emotional", "source_page": null },
+    { "id": 37, "group": "эпичная",    "roman": "I - vi - ii - IV",             "example_c_am": "C - Am - Dm - F",           "mood_or_use": "Uplifting ballad, hopeful tone", "source_page": null },
+    { "id": 38, "group": "эпичная",    "roman": "vi - ii - V - I",              "example_c_am": "Am - Dm - G - C",           "mood_or_use": "Classic jazz/pop return", "source_page": null },
+    { "id": 39, "group": "эпичная",    "roman": "IV - vi - V - I",              "example_c_am": "F - Am - G - C",            "mood_or_use": "Warm resolution, cinematic feel", "source_page": null },
+    { "id": 40, "group": "эпичная",    "roman": "vi - ii - iii - IV",           "example_c_am": "Am - Dm - Em - F",          "mood_or_use": "Emotional build, storytelling", "source_page": null },
+
+    { "id": 41, "group": "русская",    "roman": "I - I - IV - V",               "example_c_am": "C - C - F - G",             "mood_or_use": "«Весёлая прогрессия»", "source_page": null },
+    { "id": 42, "group": "русская",    "roman": "IV - I - V - V",               "example_c_am": "F - C - G - G",             "mood_or_use": "«Прогрессия-путешествие»", "source_page": null }
+  ]
+}

@@ -1,6 +1,8 @@
 bridge/node_modules/
 tests/captures/
 build/
+__pycache__/
+.pytest_cache/
 plugin/build/
 .vs/
 .idea/

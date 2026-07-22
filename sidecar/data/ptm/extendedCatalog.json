@@ -1,0 +1,290 @@
+{
+  "_meta": {
+    "description": "Дополнительный каталог именованных прогрессий и гармонических ходов ЗА ПРЕДЕЛАМИ методички ПТМ-26. Собран из открытых источников (Wikipedia, Open Music Theory, Hooktheory, film-scoring литература) для опознания того, что таблицы ПТМ не покрывают. Не является частью курса Левашова.",
+    "compiled": "2026-07-20",
+    "note_matching": "Прогрессии матчатся на уровне трезвучий (mажор/минор/dim/aug/sus). Циклические лупы инвариантны к ротации; направленные фразовые схемы имеют cyclic=false. 2-аккордовые ходы вынесены в transition_moves, чтобы не коллидировать с вампами ПТМ при ротации.",
+    "source_hubs": [
+      "https://www.hooktheory.com/theorytab/popular-chord-progressions",
+      "https://viva.pressbooks.pub/openmusictheory/chapter/modal-mixture/",
+      "https://en.wikipedia.org/wiki/Chromatic_mediant",
+      "https://motifkit.com/chromatic-mediants/",
+      "https://www.ethanhein.com/wp/2024/identifying-plagal-cadences/"
+    ]
+  },
+  "progressions": [
+    {
+      "id": 1,
+      "name_ru": "Прогрессия Пахельбеля (Canon)",
+      "name_en": "Pachelbel / Canon progression",
+      "roman": "I - V - vi - iii - IV - I - IV - V",
+      "mood": "Величаво, ностальгично, «неизбежный спуск»; вечное балладное клише",
+      "examples": ["Pachelbel — Canon in D", "Green Day — Basket Case"],
+      "sources": ["https://en.wikipedia.org/wiki/Pachelbel%27s_Canon", "https://openmusictheory.github.io/popRockHarmony-pachelbel.html"]
+    },
+    {
+      "id": 2,
+      "name_ru": "Прогрессия Creep",
+      "name_en": "Creep progression",
+      "roman": "I - III - IV - iv",
+      "mood": "Тоска, переходящая в боль: мажорная III (свет) и заимствованная минорная iv (обрушение)",
+      "examples": ["Radiohead — Creep", "Lana Del Rey — Get Free"],
+      "sources": ["https://en.wikipedia.org/wiki/Creep_(Radiohead_song)"]
+    },
+    {
+      "id": 3,
+      "name_ru": "Королевская дорога (аниме/J-pop)",
+      "name_en": "Royal Road / Ōdō shinkō",
+      "roman": "IV - V - iii - vi",
+      "mood": "Горько-сладкий подъём без разрешения в тонику; фирменный звук J-pop и аниме",
+      "examples": ["Yumi Arai — Yasashisa ni Tsutsumareta nara", "бесчисленные аниме-опенинги"],
+      "sources": ["https://en.wikipedia.org/wiki/Royal_road_progression", "https://blog.flat.io/jpop-anime-chord-progressions/"]
+    },
+    {
+      "id": 4,
+      "name_ru": "Аниме-каданс",
+      "name_en": "IV-V-vi deceptive lift",
+      "roman": "IV - V - vi",
+      "mood": "Эмоциональный подъём с «обманутым» разрешением в минор",
+      "examples": ["кульминации аниме-опенингов"],
+      "sources": ["https://chromaticdreamers.com/analyzing-anime-song-chord-progressions/"]
+    },
+    {
+      "id": 5,
+      "name_ru": "Каданс Марио",
+      "name_en": "Mario cadence",
+      "roman": "bVI - bVII - I",
+      "mood": "Триумф, «уровень пройден»; bVII как псевдодоминанта",
+      "examples": ["Koji Kondo — Super Mario Bros.", "игровые фанфары"],
+      "sources": ["http://gamemusictheory.blogspot.com/2011/04/mario-cadence.html"]
+    },
+    {
+      "id": 6,
+      "name_ru": "Двойной плагальный каданс",
+      "name_en": "Double plagal cadence",
+      "roman": "bVII - IV - I",
+      "mood": "Тёплый рок/госпел «amen-amen»; любимый ход Битлз",
+      "examples": ["The Beatles — Hey Jude (кода)", "With a Little Help from My Friends"],
+      "sources": ["https://www.ethanhein.com/wp/2024/identifying-plagal-cadences/"]
+    },
+    {
+      "id": 7,
+      "name_ru": "Битловский плагальный каданс",
+      "name_en": "Major-minor (Beatles) plagal cadence",
+      "roman": "IV - iv - I",
+      "mood": "Горько-сладкий поворот из света в тень и домой; самый надёжный «выжми слезу»",
+      "examples": ["The Beatles — In My Life", "Radiohead — No Surprises"],
+      "sources": ["https://en.wikipedia.org/wiki/Plagal_cadence"]
+    },
+    {
+      "id": 8,
+      "name_ru": "Джазовый оборот ii-V-I",
+      "name_en": "ii-V-I (the front door)",
+      "roman": "ii - V - I",
+      "mood": "Гладкое образцовое разрешение; главный джазовый каданс",
+      "examples": ["Autumn Leaves", "Tune Up"],
+      "sources": ["https://en.wikipedia.org/wiki/Ii%E2%80%93V%E2%80%93I_progression"]
+    },
+    {
+      "id": 9,
+      "name_ru": "Бэкдор-каданс («задняя дверь»)",
+      "name_en": "Backdoor cadence",
+      "roman": "iv - bVII - I",
+      "mood": "Соул/госпел вход в тонику «с чёрного хода», тёплая неожиданность",
+      "examples": ["Lady Bird", "ходы Steely Dan"],
+      "sources": ["https://en.wikipedia.org/wiki/Backdoor_progression"]
+    },
+    {
+      "id": 10,
+      "name_ru": "Неаполитанский оборот",
+      "name_en": "Neapolitan bII - V - i",
+      "roman": "bII - V - i",
+      "mood": "Тёмное драматическое предъикт-нагнетание; оперная напряжённость",
+      "examples": ["Jacques Brel — Ne me quitte pas", "Бетховен, Шопен"],
+      "sources": ["https://en.wikipedia.org/wiki/Neapolitan_chord"]
+    },
+    {
+      "id": 11,
+      "name_ru": "Двойная доминанта в кадансе",
+      "name_en": "V of V cadence",
+      "roman": "II - V - I",
+      "mood": "Просветляющий «толчок» к доминанте перед разрешением",
+      "examples": ["Dolly Parton — 9 to 5", "Queen — Bohemian Rhapsody (интро)"],
+      "sources": ["https://www.hooktheory.com/theorytab/common-chord-progressions/33"]
+    },
+    {
+      "id": 12,
+      "name_ru": "Ламенто-бас / нисходящий тетрахорд",
+      "name_en": "Lament bass",
+      "roman": "i - bVII - bVI - V",
+      "mood": "Скорбь, трагедия; барочное ламенто и транс-нагнетание с мажорной V гармонического минора",
+      "examples": ["Purcell — Dido's Lament", "транс/прогрессив-хаус брейкдауны"],
+      "sources": ["https://en.wikipedia.org/wiki/Lament_bass", "https://organizingsound.com/writing-minor-key-chord-progressions/"]
+    },
+    {
+      "id": 13,
+      "name_ru": "Hotel California (расширенная андалузская)",
+      "name_en": "Hotel California progression",
+      "roman": "i - V - bVII - IV - bVI - III - iv - V",
+      "mood": "Гипнотический испанский спуск, который никогда не находит покоя",
+      "examples": ["Eagles — Hotel California"],
+      "sources": ["https://www.hooktheory.com/theorytab/view/eagles/hotel-california"]
+    },
+    {
+      "id": 14,
+      "name_ru": "Тёрнэраунд Tin Pan Alley",
+      "name_en": "I-vi-ii-V turnaround",
+      "roman": "I - vi - ii - V",
+      "mood": "Пружинистый круговой оборот (Rhythm changes, секция A)",
+      "examples": ["Gershwin — I Got Rhythm", "Charlie Parker — Anthropology"],
+      "sources": ["https://en.wikipedia.org/wiki/Rhythm_changes"]
+    },
+    {
+      "id": 15,
+      "name_ru": "Цепь побочных доминант (мост Rhythm changes)",
+      "name_en": "Montgomery-Ward bridge",
+      "roman": "I - VI - II - V",
+      "mood": "Каскад доминант, эстрадный подъём",
+      "examples": ["мосты стандартов Tin Pan Alley"],
+      "sources": ["https://en.wikipedia.org/wiki/Rhythm_changes"]
+    },
+    {
+      "id": 16,
+      "name_ru": "Госпел-оборот I-iii-vi",
+      "name_en": "Gospel 3-6 turn",
+      "roman": "I - iii - vi",
+      "mood": "Тёплое церковное разрешение к параллельному минору",
+      "examples": ["госпел/соул баллады", "ходы Stevie Wonder"],
+      "sources": ["https://learnmusictheory.net/PDFs/pdffiles/01-05-02-RomanNumerals.pdf"]
+    },
+    {
+      "id": 17,
+      "name_ru": "Проходящий уменьшённый вверх",
+      "name_en": "Chromatic passing dim ascent",
+      "roman": "I - #I dim - ii",
+      "mood": "Гладкая госпел/джаз связка басом 1-#1-2",
+      "examples": ["госпел-фортепиано", "JRPG-темы городов"],
+      "sources": ["https://www.thejazzpianosite.com/jazz-piano-lessons/jazz-chords/passing-chords/"]
+    },
+    {
+      "id": 18,
+      "name_ru": "Госпел-плагальность с #IVdim",
+      "name_en": "IV - #IVdim - I gospel amen",
+      "roman": "IV - #IV dim - I",
+      "mood": "Церковное «аминь» с восходящим внутренним напряжением",
+      "examples": ["госпел-каденции", "переармонизации гимнов"],
+      "sources": ["https://www.ethanhein.com/wp/2024/identifying-plagal-cadences/"]
+    },
+    {
+      "id": 19,
+      "name_ru": "EDM эпик-петля",
+      "name_en": "EDM epic minor loop",
+      "roman": "i - bVI - bIII - bVII",
+      "mood": "Эйфорично-меланхоличный «фестивальный» звук",
+      "examples": ["Avicii-стиль прогрессив-хауса", "Alan Walker — Faded (семейство)"],
+      "sources": ["https://unison.audio/edm-chord-progressions/"]
+    },
+    {
+      "id": 20,
+      "name_ru": "Восходящая транс-петля",
+      "name_en": "Progressive-house building loop",
+      "roman": "i - bVI - bVII - i",
+      "mood": "Пропульсивное «наращивание энергии»; классика аплифтинг-транса и JRPG-битв",
+      "examples": ["аплифтинг-транс", "Nobuo Uematsu — боевые темы Final Fantasy"],
+      "sources": ["https://blog.samplefocus.com/blog/the-most-popular-chord-progressions-in-edm/", "https://composercode.com/13-essential-chord-progressions-from-game-music/"]
+    },
+    {
+      "id": 21,
+      "name_ru": "Дип-хаус джазовая петля",
+      "name_en": "Deep house minor-7 loop",
+      "roman": "i - iv - bVII - bIII",
+      "mood": "Гладкий грувовый «ночной драйв» (в оригинале все аккорды с септимами)",
+      "examples": ["дип/фьюче-хаус, петли в духе Disclosure"],
+      "sources": ["https://unison.audio/edm-chord-progressions/"]
+    },
+    {
+      "id": 22,
+      "name_ru": "Лоу-фай петля maj7",
+      "name_en": "Lo-fi IVmaj7 loop",
+      "roman": "I - iii - vi - IV",
+      "mood": "Тёплая ностальгия, задумчивое спокойствие (в оригинале Imaj7-iii7-vi7-IVmaj7)",
+      "examples": ["lo-fi hip-hop", "Evan Call — Frieren (эмбиент-куски)"],
+      "sources": ["https://composercode.com/13-essential-chord-progressions-from-game-music/"]
+    },
+    {
+      "id": 23,
+      "name_ru": "Расширенный госпел-каданс 2-5-1",
+      "name_en": "Neo-soul ii-V-I with extensions",
+      "roman": "ii - V - I - vi",
+      "mood": "Роскошное нео-соул разрешение с заходом на новый круг (в оригинале ii9-V13-Imaj9)",
+      "examples": ["D'Angelo, Robert Glasper", "госпел-воршип"],
+      "sources": ["https://pressbooks.pub/harmonyandmusicianshipwithsolfege/chapter/ii7-v7-i7-the-foundation-of-jazz-harmony/"]
+    },
+    {
+      "id": 24,
+      "name_ru": "Схема Puff (медиантный подъём)",
+      "name_en": "Puff progression",
+      "roman": "I - III - IV",
+      "cyclic": false,
+      "mood": "Фразовый подъём через мажорную медианту к субдоминанте; это начало фразы, а не замкнутый круг",
+      "examples": ["Peter, Paul and Mary — Puff, the Magic Dragon", "The Animals — House of the Rising Sun (минорная трактовка)"],
+      "sources": ["https://openmusictheory.github.io/popRockHarmony-puff.html"]
+    },
+    {
+      "id": 25,
+      "name_ru": "Минорный круг квинт",
+      "name_en": "Minor circle-of-fifths loop",
+      "roman": "i - iv - bVII - bIII",
+      "cyclic": true,
+      "mood": "Плавное круговое движение от минора к относительному мажору; тягучая балладная или драматическая петля",
+      "examples": ["Def Leppard — Love Bites", "Muse — Thoughts of a Dying Atheist"],
+      "sources": ["https://openmusictheory.github.io/popRockHarmony-fifths.html"]
+    },
+    {
+      "id": 26,
+      "name_ru": "Расширенная плагальная цепь",
+      "name_en": "Extended plagal chain",
+      "roman": "bVI - bIII - bVII - IV - I",
+      "cyclic": false,
+      "mood": "Широкое рок-разрешение серией нисходящих кварт к тонике",
+      "examples": ["Jimi Hendrix — Hey Joe"],
+      "sources": ["https://openmusictheory.github.io/popRockHarmony-plagal.html"]
+    }
+  ],
+  "transition_moves": [
+    {
+      "name_ru": "Параллельный минор (I → i)",
+      "name_en": "Parallel minor shift",
+      "match": { "triad_1": "maj", "triad_2": "min", "diff": 0 },
+      "mood": "Внезапное затемнение, потеря невинности; кино-ход «добро оборачивается злом»",
+      "sources": ["https://viva.pressbooks.pub/openmusictheory/chapter/modal-mixture/"]
+    },
+    {
+      "name_ru": "Пикардийская терция (i → I)",
+      "name_en": "Picardy third",
+      "match": { "triad_1": "min", "triad_2": "maj", "diff": 0 },
+      "mood": "Неожиданный свет, искупление в конце",
+      "sources": ["https://en.wikipedia.org/wiki/Picardy_third"]
+    },
+    {
+      "name_ru": "Проходящий уменьшённый",
+      "name_en": "Passing diminished",
+      "match": { "triad_2": "dim", "diff_any": [1, 11] },
+      "mood": "Хроматическая связка (госпел/джаз/JRPG): гладкое скольжение баса",
+      "sources": ["https://www.thejazzpianosite.com/jazz-piano-lessons/jazz-chords/passing-chords/"]
+    },
+    {
+      "name_ru": "Разрешение уменьшённого",
+      "name_en": "Diminished resolution",
+      "match": { "triad_1": "dim", "diff_any": [1, 11] },
+      "mood": "Уменьшённый разрешается полутоновым шагом — снятие напряжения",
+      "sources": ["https://www.thejazzpianosite.com/jazz-piano-lessons/jazz-chords/passing-chords/"]
+    },
+    {
+      "name_ru": "Увеличенный как усилитель",
+      "name_en": "Augmented enhancer",
+      "match": { "any_aug": true },
+      "mood": "Линеарный ход / усилитель доминанты (см. ПТМ: dominant enhancers)",
+      "sources": ["https://en.wikipedia.org/wiki/Augmented_triad"]
+    }
+  ]
+}

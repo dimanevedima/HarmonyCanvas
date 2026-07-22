@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "source": "Олег Левашов — Понятная теория музыки (ПТМ-26) v5.0, стр. 44 (полная таблица), стр. 37 (сводка)",
+    "description": "46 модальных аккордовых пар. Нотация: chord_1 [интервал в ступенях] chord_2 = модальное время на циферблате. Часовая стрелка = аккорд 1 (всегда на 12), минутная = аккорд 2.",
+    "categories": {
+      "1": "Позитив",
+      "2": "Фантастика и колорит",
+      "3": "Сказочность",
+      "4": "Драматизм и печаль",
+      "5": "Опасность и тьма"
+    },
+    "flags_legend": { "highlighted": "(!) — выделенная автором строка, самые характерные пары" },
+    "color_group_note": "Цветовая маркировка категорий в таблице есть, но точные цвета не зафиксированы при OCR — needs_manual_review",
+    "ocr_confidence": "high"
+  },
+  "pairs": [
+    { "number": 2,  "chord_1": "C",  "interval": "2",  "chord_2": "D",   "clock": "12:10", "category": 1, "category_name": "Позитив", "mood_description": "Светлое, позитивное (связано с главным героем)", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 5,  "chord_1": "C",  "interval": "4",  "chord_2": "F",   "clock": "12:55", "category": 1, "category_name": "Позитив", "mood_description": "Умиротворённо, стабильно", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 7,  "chord_1": "C",  "interval": "5",  "chord_2": "G",   "clock": "12:05", "category": 1, "category_name": "Позитив", "mood_description": "Доброжелательно, гостеприимно", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 10, "chord_1": "C",  "interval": "b7", "chord_2": "A#",  "clock": "12:50", "category": 1, "category_name": "Позитив", "mood_description": "Позитивно, мягко, неброско", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 13, "chord_1": "C",  "interval": "2",  "chord_2": "Dm",  "clock": "12:55", "category": 1, "category_name": "Позитив", "mood_description": "Оптимистично, сдержанно-торжественно", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 20, "chord_1": "C",  "interval": "6",  "chord_2": "Am",  "clock": "12:00", "category": 1, "category_name": "Позитив", "mood_description": "Стабильность, спокойствие, путешествие к цели", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 30, "chord_1": "Cm", "interval": "5",  "chord_2": "G",   "clock": "12:20", "category": 1, "category_name": "Позитив", "mood_description": "Неспешный рассказ, монотонность, стабильность", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 33, "chord_1": "Cm", "interval": "b7", "chord_2": "A#",  "clock": "12:05", "category": 1, "category_name": "Позитив", "mood_description": "Положительный герой, долгое путешествие", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 35, "chord_1": "Cm", "interval": "8",  "chord_2": "C",   "clock": "12:15", "category": 1, "category_name": "Позитив", "mood_description": "Резкий контраст. Позитивный финал", "flags": { "highlighted": false }, "source_page": 44 },
+
+    { "number": 1,  "chord_1": "C",  "interval": "b2", "chord_2": "C#",  "clock": "12:35", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Умеренно напряжённо, предвещает события", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 6,  "chord_1": "C",  "interval": "b5", "chord_2": "F#",  "clock": "12:30", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Космическое пространство, звёзды", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 8,  "chord_1": "C",  "interval": "b6", "chord_2": "G#",  "clock": "12:40", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Фантастическое, фэнтези", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 11, "chord_1": "C",  "interval": "7",  "chord_2": "B",   "clock": "12:25", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Загадочно, монументально", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 16, "chord_1": "C",  "interval": "4",  "chord_2": "Fm",  "clock": "12:40", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Романтическое, ближневосточное", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 22, "chord_1": "C",  "interval": "7",  "chord_2": "Bm",  "clock": "12:10", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Нейтральная обстановка, изучение окружения", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 24, "chord_1": "Cm", "interval": "b2", "chord_2": "C#",  "clock": "12:50", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Нейтральная обстановка, загадочно, любопытно", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 29, "chord_1": "Cm", "interval": "b5", "chord_2": "F#",  "clock": "12:45", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Любопытство, необычная обстановка, изучение", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 32, "chord_1": "Cm", "interval": "6",  "chord_2": "A",   "clock": "12:30", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Волшебство, контраст", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 37, "chord_1": "Cm", "interval": "2",  "chord_2": "Dm",  "clock": "12:10", "category": 2, "category_name": "Фантастика и колорит", "mood_description": "Неопределённо, нейтрально", "flags": { "highlighted": false }, "source_page": 44 },
+
+    { "number": 3,  "chord_1": "C",  "interval": "b3", "chord_2": "D#",  "clock": "12:45", "category": 3, "category_name": "Сказочность", "mood_description": "Спокойно, сказочно", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 4,  "chord_1": "C",  "interval": "3",  "chord_2": "E",   "clock": "12:20", "category": 3, "category_name": "Сказочность", "mood_description": "Эпично, пейзажно", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 9,  "chord_1": "C",  "interval": "6",  "chord_2": "A",   "clock": "12:15", "category": 3, "category_name": "Сказочность", "mood_description": "Волшебно, таинственно", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 18, "chord_1": "C",  "interval": "5",  "chord_2": "Gm",  "clock": "12:50", "category": 3, "category_name": "Сказочность", "mood_description": "Потустороннее", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 21, "chord_1": "C",  "interval": "b7", "chord_2": "A#m", "clock": "12:35", "category": 3, "category_name": "Сказочность", "mood_description": "Эпично, монументально, неизвестность вокруг", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 26, "chord_1": "Cm", "interval": "b3", "chord_2": "D#",  "clock": "12:00", "category": 3, "category_name": "Сказочность", "mood_description": "Задумчиво, прощание, впереди долгая дорога", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 27, "chord_1": "Cm", "interval": "3",  "chord_2": "E",   "clock": "12:35", "category": 3, "category_name": "Сказочность", "mood_description": "Таинственные земли, невиданные места", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 28, "chord_1": "Cm", "interval": "4",  "chord_2": "F",   "clock": "12:10", "category": 3, "category_name": "Сказочность", "mood_description": "Волшебство, чудо", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 42, "chord_1": "Cm", "interval": "5",  "chord_2": "Gm",  "clock": "12:05", "category": 3, "category_name": "Сказочность", "mood_description": "Фолково, былинно, широкие просторы, воля", "flags": { "highlighted": true },  "source_page": 44 },
+
+    { "number": 12, "chord_1": "C",  "interval": "b2", "chord_2": "C#m", "clock": "12:20", "category": 4, "category_name": "Драматизм и печаль", "mood_description": "Напряжённо, загадочно, подготавливает к драме", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 15, "chord_1": "C",  "interval": "3",  "chord_2": "Em",  "clock": "12:05", "category": 4, "category_name": "Драматизм и печаль", "mood_description": "Печаль, траур, потеря (очень популярный ход)", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 23, "chord_1": "C",  "interval": "8",  "chord_2": "Cm",  "clock": "12:45", "category": 4, "category_name": "Драматизм и печаль", "mood_description": "Резкая смена настроения. Переход к драматической части", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 25, "chord_1": "Cm", "interval": "2",  "chord_2": "D",   "clock": "12:25", "category": 4, "category_name": "Драматизм и печаль", "mood_description": "Таинственное, загадочное, задумчивое", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 31, "chord_1": "Cm", "interval": "b6", "chord_2": "G#",  "clock": "12:55", "category": 4, "category_name": "Драматизм и печаль", "mood_description": "Грустное, меланхоличное, тягучее (популярно в doom metal)", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 34, "chord_1": "Cm", "interval": "7",  "chord_2": "B",   "clock": "12:40", "category": 4, "category_name": "Драматизм и печаль", "mood_description": "Драматическое (популярно в саундтреках начала XXI века)", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 40, "chord_1": "Cm", "interval": "4",  "chord_2": "Fm",  "clock": "12:55", "category": 4, "category_name": "Драматизм и печаль", "mood_description": "Героичность, драматизм, эпичность", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 45, "chord_1": "Cm", "interval": "b7", "chord_2": "A#m", "clock": "12:50", "category": 4, "category_name": "Драматизм и печаль", "mood_description": "Умеренно печально, задумчиво", "flags": { "highlighted": false }, "source_page": 44 },
+
+    { "number": 14, "chord_1": "C",  "interval": "b3", "chord_2": "D#m", "clock": "12:30", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Тревожно, неизвестность вокруг", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 17, "chord_1": "C",  "interval": "b5", "chord_2": "F#m", "clock": "12:15", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Осторожность, ожидание, что-то может случиться", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 19, "chord_1": "C",  "interval": "b6", "chord_2": "G#m", "clock": "12:25", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Мрачно, сурово, величаво", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 36, "chord_1": "Cm", "interval": "b2", "chord_2": "C#m", "clock": "12:35", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Напряжение, предчувствие беды", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 38, "chord_1": "Cm", "interval": "b3", "chord_2": "D#m", "clock": "12:45", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Мрачное, зловещее", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 39, "chord_1": "Cm", "interval": "3",  "chord_2": "Em",  "clock": "12:20", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Тревога, неизвестность, величественно-мрачно", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 41, "chord_1": "Cm", "interval": "b5", "chord_2": "F#m", "clock": "12:30", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Опасность, тревога (общая атмосфера)", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 43, "chord_1": "Cm", "interval": "b6", "chord_2": "G#m", "clock": "12:40", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Зло, опасность, противостояние (связано с персонажем)", "flags": { "highlighted": true },  "source_page": 44 },
+    { "number": 44, "chord_1": "Cm", "interval": "6",  "chord_2": "Am",  "clock": "12:15", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Тревожно, напряжённо, мрачно, зловеще", "flags": { "highlighted": false }, "source_page": 44 },
+    { "number": 46, "chord_1": "Cm", "interval": "7",  "chord_2": "Bm",  "clock": "12:25", "category": 5, "category_name": "Опасность и тьма", "mood_description": "Зловеще, опасно, загадочно", "flags": { "highlighted": false }, "source_page": 44 }
+  ]
+}

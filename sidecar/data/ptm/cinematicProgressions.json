@@ -1,0 +1,92 @@
+{
+  "_meta": {
+    "source": "ПТМ-26 v5.0, стр. 74–75 — «12 кинематографических аккордовых прогрессий» (бонус из раздела 2-01В, идеально дополняет модальный циферблат)",
+    "ocr_confidence": "high"
+  },
+  "patterns": [
+    {
+      "id": 1, "category": "ЭПИК", "name": "Возвышенный (Epic Uplifting)",
+      "roman": "I - bVI - bVII - iv", "example": "C - Ab - Bb - Fm",
+      "use": "Эпические / возвышенные моменты, кульминации",
+      "theory": "bVI, bVII, iv: в функциональной гармонии = модальный обмен (заимствования из Cm); в модальной = эолийские ступени. Создают надрывное, эмоциональное, драматичное звучание — одновременно «тёмное и лиричное»",
+      "source_page": 74
+    },
+    {
+      "id": 2, "category": "ЭПИК", "name": "Триумфальный (Epic Superhero)",
+      "roman": "i - VI - IV - VI - VII", "example": "Am - F - D - F - G",
+      "use": "Супергеройские сцены, триумфальные моменты, эпические битвы, сцены трансформации и могущества",
+      "theory": "IV: в функциональной гармонии = DD (двойная доминанта); в модальной = дорийская ступень (заимствование из дорийского лада)",
+      "source_page": 74
+    },
+    {
+      "id": 3, "category": "ЭПИК", "name": "Трагический (Epic Tragedy)",
+      "roman": "i - VI - III - VII", "example": "Am - F - C - G",
+      "use": "Благородная трагедия, эпическая драма; героические драматические сцены",
+      "theory": "«Классический» Ханс Циммер (Gladiator, Batman, Inception); также «фирменная» прогрессия Брайена Тайлера (Rambo, Fast & Furious)",
+      "source_page": 74
+    },
+    {
+      "id": 4, "category": "ЭКШН", "name": "Героический (Heroic Action)",
+      "roman": "i - III - VII - iv", "example": "Am - C - G - Dm",
+      "use": "Героические сцены, преодоление препятствий; кинотрейлеры",
+      "theory": "«Heart of Courage» (Two Steps from Hell), «Arrival to Earth» (Steve Jablonsky, Transformers)",
+      "source_page": 74
+    },
+    {
+      "id": 5, "category": "ЭКШН", "name": "Неудержимый (Unstoppable Action)",
+      "roman": "i - III - VI - iv", "example": "Am - C - F - Dm",
+      "use": "Стремительное движение вперёд, неудержимая сила, мотивационные сцены, сцены погони или нарастающего напряжения",
+      "theory": null,
+      "source_page": 74
+    },
+    {
+      "id": 6, "category": "ПРИКЛЮЧЕНИЯ", "name": "Авантюрный (Adventure)",
+      "roman": "i - VI - VII - i", "example": "Am - F - G - Am",
+      "use": "Героика, приключения, сражения и баталии",
+      "theory": "Эолийская циклическая структура с мощным драматичным звучанием — «золотой стандарт хэви-метала» (75% песен Iron Maiden); фирменная прогрессия «Пиратов Карибского моря» (Zimmer / Badelt); почти идентична паттерну №3 и теме Gladiator",
+      "source_page": 74
+    },
+    {
+      "id": 7, "category": "ДРАМА", "name": "Надежда (Hopeful Drama)",
+      "roman": "i - v - VII - iv", "example": "Am - Em - G - Dm",
+      "use": "Меланхолично-воодушевляющий эффект, эпичные моменты",
+      "theory": "Визитная карточка современного кинематографического саунда; используется в «Time» (Hans Zimmer, Inception)",
+      "source_page": 75
+    },
+    {
+      "id": 8, "category": "ДРАМА", "name": "Честь (Honor Drama)",
+      "roman": "iv - VII - i - VI", "example": "Dm - G - Am - F",
+      "use": "Благородные поступки, рыцарские сцены, моральные дилеммы, моменты чести и достоинства, жертвенность",
+      "theory": null,
+      "source_page": 75
+    },
+    {
+      "id": 9, "category": "РОМАНТИКА", "name": "Нежный (Romance)",
+      "roman": "I - iv6 - I", "example": "C - Fm6 - C",
+      "use": "Романтические / интимные сцены, нежность, ностальгия, тоска, горько-сладкие эмоции",
+      "theory": "iv: в функциональной гармонии = модальный обмен (из Cm); в модальной = гармоническая ячейка C [4] Fm = 12:40 (Фантастика / Романтика). Одна из самых известных прогрессий в истории кино — тема Принцессы Леи (John Williams, Star Wars)",
+      "source_page": 75
+    },
+    {
+      "id": 10, "category": "МЕЛАНХОЛИЯ", "name": "Одинокий (Loneliness)",
+      "roman": "VI - VII - i - VII", "example": "F - G - Am - G",
+      "use": "Одиночество, меланхолия, страстные эмоции",
+      "theory": "Вариация Andalusian cadence (Am-G-F-E) — одной из старейших гармонических прогрессий западной музыки (с 1638 г., Monteverdi «Lamento della Ninfa»). Примеры: Michael Jackson «Smooth Criminal», Dire Straits «Sultans of Swing», Bob Dylan «One More Cup of Coffee», Ray Charles «Hit the Road Jack»",
+      "source_page": 75
+    },
+    {
+      "id": 11, "category": "КОСМОС", "name": "Философский (Cosmic)",
+      "roman": "VI - v/VII | i - v/VII", "example": "F - Em/G | Am - Em/G",
+      "use": "Космос, бесконечность, философская глубина",
+      "theory": "Em с басом G создаёт напряжение перед разрешением в Am. Циклическая структура создаёт ощущение движения в неизвестность. Минималистичная атмосферная прогрессия из фильма Interstellar (Hans Zimmer)",
+      "source_page": 75
+    },
+    {
+      "id": 12, "category": "ТРИЛЛЕР", "name": "Мрачный (Dark Tension)",
+      "roman": "i - III - ii° - (V - V7/IV) | i/III - VI - iv - V", "example": "Am - C - Bdim - (E - E7/D) | Am/C - F - Dm - E",
+      "use": "Мрачные драматические сцены, психологическое напряжение, трагедия, сцены конфликта и внутренней борьбы, триллеры",
+      "theory": "ii° — уменьшенное трезвучие; (V - V7/IV) — проходящая последовательность",
+      "source_page": 75
+    }
+  ]
+}
