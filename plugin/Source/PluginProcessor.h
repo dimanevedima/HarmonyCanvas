@@ -28,6 +28,7 @@ public:
     };
 
     HarmonyCanvasProcessor();
+    ~HarmonyCanvasProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -55,6 +56,7 @@ public:
     void enqueuePreviewMessage (const juce::MidiMessage& message);
     void setPlaybackTimeline (std::vector<PlaybackEvent> events, double lengthBeats);
     TransportSnapshot getTransportSnapshot() const noexcept;
+    juce::String getInstanceId() const;
 
 private:
     struct PlaybackTimeline
@@ -79,6 +81,7 @@ private:
     double currentSampleRate = 44100.0;
     double lastBlockEndPpq = 0.0;
     bool wasHostPlaying = false;
+    juce::String instanceId;
     std::atomic<double> hostBpm { 120.0 };
     std::atomic<double> hostPpq { 0.0 };
     std::atomic<int> hostMeterNumerator { 4 };

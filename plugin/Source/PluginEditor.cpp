@@ -186,12 +186,16 @@ juce::WebBrowserComponent::Options HarmonyCanvasEditor::makeBrowserOptions (Harm
     return options;
 }
 
-juce::String HarmonyCanvasEditor::getLabUrl()
+juce::String HarmonyCanvasEditor::getLabUrl (const HarmonyCanvasProcessor& processor)
 {
+    const auto instance = processor.getInstanceId();
     if (const auto* custom = std::getenv ("HARMONY_CANVAS_LAB_URL"))
-        return custom;
+    {
+        const juce::String base (custom);
+        return base + (base.containsChar ('?') ? "&" : "?") + "focus=lab&instance=" + instance;
+    }
 
-    return "http://127.0.0.1:8787/?focus=lab";
+    return "http://127.0.0.1:8787/?focus=lab&instance=" + instance;
 }
 
 juce::File HarmonyCanvasEditor::findSidecarExecutable()
@@ -256,7 +260,7 @@ HarmonyCanvasEditor::HarmonyCanvasEditor (HarmonyCanvasProcessor& owner)
     if (std::getenv ("HARMONY_CANVAS_LAB_URL") != nullptr)
     {
         startupStatus.setVisible (false);
-        browser.goToURL (getLabUrl());
+        browser.goToURL (getLabUrl (processor));
         labPageRequested = true;
         startTimer (30);
     }
@@ -277,7 +281,7 @@ void HarmonyCanvasEditor::timerCallback()
 {
     if (! labPageRequested && isSidecarReady())
     {
-        browser.goToURL (getLabUrl());
+        browser.goToURL (getLabUrl (processor));
         startupStatus.setVisible (false);
         labPageRequested = true;
         startTimer (100);

@@ -88,9 +88,12 @@ class SketchStore:
                 return
             self._write_unlocked([default_sketch()])
 
-    def list(self) -> list[dict]:
+    def list(self, instance_id: str | None = None) -> list[dict]:
         with self.lock:
-            return sorted(self._read_unlocked(), key=lambda item: item.get("updated_at", ""), reverse=True)
+            sketches = self._read_unlocked()
+            if instance_id:
+                sketches = [item for item in sketches if item.get("instance_id") == instance_id]
+            return sorted(sketches, key=lambda item: item.get("updated_at", ""), reverse=True)
 
     def get(self, sketch_id: str) -> dict | None:
         with self.lock:
@@ -114,11 +117,42 @@ class SketchStore:
             "created_at": now,
             "updated_at": now,
         })
+        instance_id = str(payload.get("instance_id") or "").strip()
+        if instance_id:
+            sketch["instance_id"] = instance_id
         with self.lock:
             sketches = self._read_unlocked()
             sketches.append(sketch)
             self._write_unlocked(sketches)
         return sketch
+
+    def get_or_create_for_instance(self, instance_id: str) -> dict:
+        instance_id = str(instance_id or "").strip()
+        if not instance_id:
+            raise ValueError("Instance ID is required")
+        with self.lock:
+            sketches = self._read_unlocked()
+            owned = [item for item in sketches if item.get("instance_id") == instance_id]
+            if owned:
+                return max(owned, key=lambda item: item.get("updated_at", ""))
+
+            # One-time migration: the first VST instance opened after this
+            # update adopts the most recently edited legacy sketch.
+            legacy = [item for item in sketches if not item.get("instance_id")]
+            if legacy:
+                sketch = max(legacy, key=lambda item: item.get("updated_at", ""))
+                sketch["instance_id"] = instance_id
+                sketch["updated_at"] = utcnow()
+                self._write_unlocked(sketches)
+                return sketch
+
+            return self.create({
+                "title": "Новый эскиз",
+                "tonic": "C",
+                "mode": "major",
+                "bpm": 120,
+                "instance_id": instance_id,
+            })
 
     def update(self, sketch_id: str, payload: dict) -> dict | None:
         with self.lock:
@@ -243,7 +277,13 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True, "service": "harmony-canvas-sidecar"})
             return
         if parts == ["api", "sketches"]:
-            self.send_json(self.store.list())
+            self.send_json(self.store.list(query.get("instance", [None])[0]))
+            return
+        if len(parts) == 4 and parts[:2] == ["api", "instances"] and parts[3] == "sketch":
+            try:
+                self.send_json(self.store.get_or_create_for_instance(parts[2]))
+            except ValueError as error:
+                self.send_error_json(HTTPStatus.BAD_REQUEST, str(error))
             return
         if len(parts) >= 3 and parts[:2] == ["api", "sketches"]:
             sketch = self.store.get(parts[2])

@@ -2,11 +2,38 @@
 #include "PluginEditor.h"
 #include <algorithm>
 #include <cmath>
+#include <mutex>
+#include <unordered_set>
+
+namespace
+{
+std::mutex instanceRegistryMutex;
+std::unordered_set<std::string> activeInstanceIds;
+
+bool claimInstanceId (const juce::String& id)
+{
+    const std::scoped_lock lock (instanceRegistryMutex);
+    return activeInstanceIds.insert (id.toStdString()).second;
+}
+
+void releaseInstanceId (const juce::String& id)
+{
+    const std::scoped_lock lock (instanceRegistryMutex);
+    activeInstanceIds.erase (id.toStdString());
+}
+}
 
 HarmonyCanvasProcessor::HarmonyCanvasProcessor()
     : AudioProcessor (BusesProperties()
-        .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
+        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+      instanceId (juce::Uuid().toString())
 {
+    claimInstanceId (instanceId);
+}
+
+HarmonyCanvasProcessor::~HarmonyCanvasProcessor()
+{
+    releaseInstanceId (instanceId);
 }
 
 void HarmonyCanvasProcessor::prepareToPlay (double sampleRate, int)
@@ -81,11 +108,31 @@ juce::AudioProcessorEditor* HarmonyCanvasProcessor::createEditor()
 void HarmonyCanvasProcessor::getStateInformation (juce::MemoryBlock& destination)
 {
     juce::MemoryOutputStream stream (destination, false);
-    stream.writeString ("harmony-canvas-state-v1");
+    stream.writeString ("harmony-canvas-state-v2");
+    stream.writeString (instanceId);
 }
 
-void HarmonyCanvasProcessor::setStateInformation (const void*, int)
+void HarmonyCanvasProcessor::setStateInformation (const void* data, int size)
 {
+    if (data == nullptr || size <= 0)
+        return;
+
+    juce::MemoryInputStream stream (data, static_cast<size_t> (size), false);
+    if (stream.readString() != "harmony-canvas-state-v2")
+        return;
+
+    const auto restoredId = stream.readString().trim();
+    if (restoredId.isEmpty() || restoredId == instanceId)
+        return;
+
+    // A duplicated track receives the source plug-in's state while the source
+    // is still alive. In that case keep the fresh constructor ID so the two
+    // instances immediately diverge instead of editing the same sketch.
+    if (claimInstanceId (restoredId))
+    {
+        releaseInstanceId (instanceId);
+        instanceId = restoredId;
+    }
 }
 
 void HarmonyCanvasProcessor::enqueuePreviewMessage (const juce::MidiMessage& message)
@@ -223,6 +270,11 @@ HarmonyCanvasProcessor::TransportSnapshot HarmonyCanvasProcessor::getTransportSn
         hostPlaying.load (std::memory_order_relaxed),
         hostTransportAvailable.load (std::memory_order_relaxed),
     };
+}
+
+juce::String HarmonyCanvasProcessor::getInstanceId() const
+{
+    return instanceId;
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

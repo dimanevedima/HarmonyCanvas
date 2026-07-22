@@ -7,3 +7,4 @@ plugin/build/
 .vs/
 .idea/
 *.log
+.artifacts/

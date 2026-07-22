@@ -12,7 +12,7 @@ public:
 
 private:
     static juce::WebBrowserComponent::Options makeBrowserOptions (HarmonyCanvasProcessor&);
-    static juce::String getLabUrl();
+    static juce::String getLabUrl (const HarmonyCanvasProcessor&);
     static juce::File findSidecarExecutable();
     static bool isSidecarReady();
     void launchSidecar();

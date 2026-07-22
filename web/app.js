@@ -3751,6 +3751,7 @@ function showView(name, options = {}) {
 // ── Composition Lab ────────────────────────────────────────────────────────
 
 let currentSketchId = null;
+const labInstanceId = new URLSearchParams(location.search).get("instance");
 
 function labModeOptions(value) {
   const modes = [["major", "Ионийский / мажор"], ["dorian", "Дорийский"], ["phrygian", "Фригийский"], ["lydian", "Лидийский"], ["mixolydian", "Миксолидийский"], ["minor", "Эолийский / минор"], ["locrian", "Локрийский"]];
@@ -3959,7 +3960,7 @@ function melodyNotesToText(notes = []) {
 
 async function createLabSketch() {
   try {
-    const sketch = await api("/sketches", { method: "POST", body: JSON.stringify({ title: "Новый эскиз", tonic: "C", mode: "major", bpm: 120 }) });
+    const sketch = await api("/sketches", { method: "POST", body: JSON.stringify({ title: "Новый эскиз", tonic: "C", mode: "major", bpm: 120, instance_id: labInstanceId || undefined }) });
     currentSketchId = sketch.id;
     await loadLab();
   } catch (error) { toast(error.message); }
@@ -3970,7 +3971,14 @@ async function loadLab() {
   if (!container) return;
   container.innerHTML = `<div class="empty">Загружаю эскизы…</div>`;
   try {
-    const sketches = await api("/sketches");
+    let sketches;
+    if (labInstanceId) {
+      const bound = await api(`/instances/${encodeURIComponent(labInstanceId)}/sketch`);
+      sketches = await api(`/sketches?instance=${encodeURIComponent(labInstanceId)}`);
+      if (!currentSketchId || !sketches.some(item => item.id === currentSketchId)) currentSketchId = bound.id;
+    } else {
+      sketches = await api("/sketches");
+    }
     if (!currentSketchId && sketches.length) currentSketchId = sketches[0].id;
     if (!currentSketchId) {
       container.innerHTML = `<section class="lab-empty panel"><p class="eyebrow">COMPOSITION LAB</p><h2>Начните с музыкального фрагмента</h2><p>Введите прогрессию, добавьте мелодию или прикрепите MIDI. Эскиз не обязан быть готовым демо.</p><button class="primary" onclick="createLabSketch()">Создать первый эскиз</button></section>`;
@@ -4979,7 +4987,8 @@ function labFocusMode() {
 }
 
 function openLabFocus() {
-  const url = `${location.pathname}?focus=lab&sketch=${encodeURIComponent(currentSketchId)}`;
+  const instance = labInstanceId ? `&instance=${encodeURIComponent(labInstanceId)}` : "";
+  const url = `${location.pathname}?focus=lab&sketch=${encodeURIComponent(currentSketchId)}${instance}`;
   const opened = window.open(url, `lab-${currentSketchId}`, "width=1700,height=1050");
   if (!opened) return toast("Браузер заблокировал новое окно — разрешите всплывающие окна для этого сайта");
   // A window reused by name keeps whatever page it already had, which after a
