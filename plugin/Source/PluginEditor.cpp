@@ -11,6 +11,7 @@ constexpr auto bridgeScript = R"JS(
 (() => {
   const backend = () => window.__JUCE__ && window.__JUCE__.backend;
   const send = (eventId, payload) => backend()?.emitEvent(eventId, payload);
+  window.harmonyCanvasSetPlaybackTimeline = payload => send('setPlaybackTimeline', payload);
   const timers = new Set();
   let playing = false;
 
@@ -154,6 +155,32 @@ juce::WebBrowserComponent::Options HarmonyCanvasEditor::makeBrowserOptions (Harm
 
     options = options.withEventListener ("midiAllNotesOff", [&processor] (const juce::var&) {
         processor.enqueuePreviewMessage (juce::MidiMessage::allNotesOff (1));
+    });
+
+    options = options.withEventListener ("setPlaybackTimeline", [&processor] (const juce::var& payload) {
+        const auto* object = payload.getDynamicObject();
+        if (object == nullptr) return;
+
+        std::vector<HarmonyCanvasProcessor::PlaybackEvent> events;
+        const auto sourceValue = object->getProperty ("events");
+        if (const auto* source = sourceValue.getArray())
+        {
+            events.reserve (static_cast<size_t> (source->size()));
+            for (const auto& item : *source)
+            {
+                const auto* event = item.getDynamicObject();
+                if (event == nullptr) continue;
+                events.push_back ({
+                    clampMidi (event->getProperty ("note")),
+                    static_cast<double> (event->getProperty ("start")),
+                    static_cast<double> (event->getProperty ("duration")),
+                    clampMidi (event->getProperty ("velocity")),
+                });
+            }
+        }
+
+        processor.setPlaybackTimeline (std::move (events),
+                                       static_cast<double> (object->getProperty ("length")));
     });
 
     return options;

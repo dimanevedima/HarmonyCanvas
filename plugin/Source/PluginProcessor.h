@@ -3,6 +3,8 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <atomic>
+#include <memory>
+#include <vector>
 
 class HarmonyCanvasProcessor final : public juce::AudioProcessor
 {
@@ -15,6 +17,14 @@ public:
         int denominator = 4;
         bool playing = false;
         bool available = false;
+    };
+
+    struct PlaybackEvent
+    {
+        int note = 60;
+        double start = 0.0;
+        double duration = 0.25;
+        int velocity = 96;
     };
 
     HarmonyCanvasProcessor();
@@ -43,10 +53,32 @@ public:
     void setStateInformation (const void*, int) override;
 
     void enqueuePreviewMessage (const juce::MidiMessage& message);
+    void setPlaybackTimeline (std::vector<PlaybackEvent> events, double lengthBeats);
     TransportSnapshot getTransportSnapshot() const noexcept;
 
 private:
+    struct PlaybackTimeline
+    {
+        std::vector<PlaybackEvent> events;
+        double lengthBeats = 0.0;
+    };
+
+    struct ActivePlaybackNote
+    {
+        int note = 60;
+        double offPpq = 0.0;
+    };
+
+    void renderHostPlayback (juce::MidiBuffer&, int numSamples,
+                             const juce::AudioPlayHead::PositionInfo&);
+    void stopHostPlayback (juce::MidiBuffer&, int sampleOffset = 0);
+
     juce::MidiMessageCollector previewMessages;
+    std::shared_ptr<const PlaybackTimeline> playbackTimeline;
+    std::vector<ActivePlaybackNote> activePlaybackNotes;
+    double currentSampleRate = 44100.0;
+    double lastBlockEndPpq = 0.0;
+    bool wasHostPlaying = false;
     std::atomic<double> hostBpm { 120.0 };
     std::atomic<double> hostPpq { 0.0 };
     std::atomic<int> hostMeterNumerator { 4 };

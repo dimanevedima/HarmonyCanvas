@@ -1,5 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <algorithm>
+#include <cmath>
 
 HarmonyCanvasProcessor::HarmonyCanvasProcessor()
     : AudioProcessor (BusesProperties()
@@ -9,11 +11,17 @@ HarmonyCanvasProcessor::HarmonyCanvasProcessor()
 
 void HarmonyCanvasProcessor::prepareToPlay (double sampleRate, int)
 {
+    currentSampleRate = sampleRate;
+    activePlaybackNotes.clear();
+    activePlaybackNotes.reserve (256);
+    wasHostPlaying = false;
     previewMessages.reset (sampleRate);
 }
 
 void HarmonyCanvasProcessor::releaseResources()
 {
+    activePlaybackNotes.clear();
+    wasHostPlaying = false;
     previewMessages.reset (44100.0);
 }
 
@@ -28,10 +36,12 @@ void HarmonyCanvasProcessor::processBlock (juce::AudioBuffer<float>& audio,
 {
     audio.clear();
 
+    bool gotPosition = false;
     if (const auto* playHead = getPlayHead())
     {
         if (const auto position = playHead->getPosition())
         {
+            gotPosition = true;
             if (const auto bpm = position->getBpm())
             {
                 hostBpm.store (*bpm, std::memory_order_relaxed);
@@ -48,7 +58,16 @@ void HarmonyCanvasProcessor::processBlock (juce::AudioBuffer<float>& audio,
             }
 
             hostPlaying.store (position->getIsPlaying(), std::memory_order_relaxed);
+            renderHostPlayback (midi, audio.getNumSamples(), *position);
         }
+    }
+
+    if (! gotPosition)
+    {
+        hostTransportAvailable.store (false, std::memory_order_relaxed);
+        hostPlaying.store (false, std::memory_order_relaxed);
+        if (wasHostPlaying)
+            stopHostPlayback (midi);
     }
 
     previewMessages.removeNextBlockOfMessages (midi, audio.getNumSamples());
@@ -72,6 +91,126 @@ void HarmonyCanvasProcessor::setStateInformation (const void*, int)
 void HarmonyCanvasProcessor::enqueuePreviewMessage (const juce::MidiMessage& message)
 {
     previewMessages.addMessageToQueue (message);
+}
+
+void HarmonyCanvasProcessor::setPlaybackTimeline (std::vector<PlaybackEvent> events,
+                                                   double lengthBeats)
+{
+    auto next = std::make_shared<PlaybackTimeline>();
+    next->lengthBeats = std::max (0.0, lengthBeats);
+    next->events.reserve (events.size());
+
+    for (auto event : events)
+    {
+        event.note = juce::jlimit (0, 127, event.note);
+        event.velocity = juce::jlimit (1, 127, event.velocity);
+        event.start = std::max (0.0, event.start);
+        event.duration = std::max (0.001, event.duration);
+        if (event.start < next->lengthBeats)
+            next->events.push_back (event);
+    }
+
+    std::sort (next->events.begin(), next->events.end(), [] (const auto& a, const auto& b) {
+        return a.start < b.start;
+    });
+    std::atomic_store_explicit (&playbackTimeline,
+                                std::shared_ptr<const PlaybackTimeline> (std::move (next)),
+                                std::memory_order_release);
+}
+
+void HarmonyCanvasProcessor::stopHostPlayback (juce::MidiBuffer& midi, int sampleOffset)
+{
+    if (! activePlaybackNotes.empty())
+        midi.addEvent (juce::MidiMessage::allNotesOff (1), sampleOffset);
+    activePlaybackNotes.clear();
+    wasHostPlaying = false;
+}
+
+void HarmonyCanvasProcessor::renderHostPlayback (juce::MidiBuffer& midi, int numSamples,
+                                                  const juce::AudioPlayHead::PositionInfo& position)
+{
+    const auto playing = position.getIsPlaying();
+    const auto bpm = position.getBpm();
+    const auto ppq = position.getPpqPosition();
+    if (! playing || ! bpm || ! ppq || *bpm <= 0.0 || currentSampleRate <= 0.0)
+    {
+        if (wasHostPlaying)
+            stopHostPlayback (midi);
+        return;
+    }
+
+    const double ppqPerSample = *bpm / (60.0 * currentSampleRate);
+    const double blockStart = *ppq;
+    const double blockEnd = blockStart + ppqPerSample * numSamples;
+    const bool jumped = wasHostPlaying
+        && std::abs (blockStart - lastBlockEndPpq) > std::max (0.02, ppqPerSample * numSamples * 2.0);
+    const bool starting = ! wasHostPlaying || jumped;
+
+    if (jumped)
+        stopHostPlayback (midi);
+
+    for (auto it = activePlaybackNotes.begin(); it != activePlaybackNotes.end();)
+    {
+        if (it->offPpq < blockEnd)
+        {
+            const int offset = juce::jlimit (0, numSamples - 1,
+                static_cast<int> (std::round ((it->offPpq - blockStart) / ppqPerSample)));
+            midi.addEvent (juce::MidiMessage::noteOff (1, it->note), offset);
+            it = activePlaybackNotes.erase (it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    const auto timeline = std::atomic_load_explicit (&playbackTimeline, std::memory_order_acquire);
+    if (timeline && timeline->lengthBeats > 0.0)
+    {
+        const double cycle = timeline->lengthBeats;
+        constexpr double epsilon = 1.0e-9;
+        const auto rememberNoteOff = [&] (int note, double offPpq) {
+            if (offPpq < blockEnd)
+            {
+                const int offset = juce::jlimit (0, numSamples - 1,
+                    static_cast<int> (std::round ((offPpq - blockStart) / ppqPerSample)));
+                midi.addEvent (juce::MidiMessage::noteOff (1, note), offset);
+            }
+            else
+            {
+                activePlaybackNotes.push_back ({ note, offPpq });
+            }
+        };
+        for (const auto& event : timeline->events)
+        {
+            if (starting)
+            {
+                const double previous = event.start + std::floor ((blockStart - event.start) / cycle) * cycle;
+                if (previous < blockStart - epsilon && previous + event.duration > blockStart + epsilon)
+                {
+                    midi.addEvent (juce::MidiMessage::noteOn (1, event.note,
+                                   static_cast<juce::uint8> (event.velocity)), 0);
+                    rememberNoteOff (event.note, previous + event.duration);
+                }
+            }
+
+            double occurrence = event.start
+                + std::ceil ((blockStart - event.start - epsilon) / cycle) * cycle;
+            for (; occurrence < blockEnd - epsilon; occurrence += cycle)
+            {
+                if (occurrence < blockStart - epsilon)
+                    continue;
+                const int offset = juce::jlimit (0, numSamples - 1,
+                    static_cast<int> (std::round ((occurrence - blockStart) / ppqPerSample)));
+                midi.addEvent (juce::MidiMessage::noteOn (1, event.note,
+                               static_cast<juce::uint8> (event.velocity)), offset);
+                rememberNoteOff (event.note, occurrence + event.duration);
+            }
+        }
+    }
+
+    wasHostPlaying = true;
+    lastBlockEndPpq = blockEnd;
 }
 
 HarmonyCanvasProcessor::TransportSnapshot HarmonyCanvasProcessor::getTransportSnapshot() const noexcept

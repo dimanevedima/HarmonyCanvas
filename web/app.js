@@ -3860,13 +3860,8 @@ function previewLabBpm(rawValue) {
 
 function applyLabDawTransport(state = {}) {
   if (!state.available || !Number.isFinite(Number(state.bpm))) return;
-  const previous = window.labDawTransport;
   const receivedAt = performance.now();
   const bpm = Math.round(Number(state.bpm) * 100) / 100;
-  const expectedPpqDelta = previous ? (receivedAt - (previous.receivedAt || receivedAt)) * Number(previous.bpm || bpm) / 60000 : 0;
-  const actualPpqDelta = previous ? Number(state.ppq || 0) - Number(previous.ppq || 0) : 0;
-  const tempoChanged = !!previous && Math.abs(Number(previous.bpm) - bpm) > .001;
-  const positionJumped = !!previous && previous.playing && state.playing && Math.abs(actualPpqDelta - expectedPpqDelta) > .5;
   window.labDawTransport = { ...state, bpm, receivedAt };
   previewLabBpm(bpm);
   const trigger = document.getElementById("lab-bpm-trigger");
@@ -3879,10 +3874,6 @@ function applyLabDawTransport(state = {}) {
   const source = trigger?.querySelector("span");
   if (source) source.textContent = "DAW";
   document.body.dataset.dawPlaying = state.playing ? "true" : "false";
-  if ((tempoChanged || positionJumped) && state.playing && ptmAudio.isPlaying()) {
-    labStopScore();
-    window.labDawWasPlaying = false;
-  }
   syncLabDawPlayback(window.labDawTransport);
 }
 
@@ -4029,6 +4020,7 @@ function renderLab(container, sketches, sketch, advice) {
   }
   initMidiPanels(container);
   labSyncHistoryButtons();
+  syncNativePlaybackTimeline(advice);
   if (window.harmonyCanvasDawTransport) applyLabDawTransport(window.harmonyCanvasDawTransport);
 }
 
@@ -4325,6 +4317,7 @@ function labLoopPointerDown(event) {
     if (span < (window.labSnapBeats || 0.5)) return clearLabLoop();
     window.labLoop = { from: Math.min(from, to), to: Math.min(from, to) + span };
     labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
+    syncNativePlaybackTimeline();
   };
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
@@ -4333,6 +4326,7 @@ function labLoopPointerDown(event) {
 function clearLabLoop() {
   window.labLoop = null;
   labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
+  syncNativePlaybackTimeline();
 }
 
 /** Drag over empty grid space to rubber-band a group of notes. */
@@ -4660,6 +4654,7 @@ function applyLabAdvice(advice, { syncChordText = false } = {}) {
   labSetRegion("lab-chord-inspector", labInspectorHtml(advice));
   labSetRegion("lab-score", labScoreHtml(advice));
   labSetRegion("lab-scale-strip", labScaleHtml(advice));
+  syncNativePlaybackTimeline(advice);
 }
 
 function labPaletteQuery() {
@@ -4860,26 +4855,71 @@ async function selectLabChord(index) {
 }
 
 function labPlay(midis, button = null) {
+  if (window.labDawTransport?.playing) return toast("Playback следует за Ableton Live");
   ptmAudio.stopAll();
   if (button) button.classList.add("is-playing");
   const bpm = Number(document.getElementById("lab-bpm")?.value) || 120;
   ptmAudio.playChords(midis, { beatSec: Math.max(.45, Math.min(1.4, 120 / bpm)), onStep: index => { if (index < 0 && button) button.classList.remove("is-playing"); } });
 }
 
+/** Send an immutable score snapshot to the audio processor. The processor owns
+ * DAW-synchronised playback, so replacing this snapshot never stops transport. */
+function syncNativePlaybackTimeline(advice = window.currentLabAdvice) {
+  if (typeof window.harmonyCanvasSetPlaybackTimeline !== "function" || !advice) return;
+  const loop = window.labLoop;
+  const scoreEnd = Math.max(
+    1,
+    ...(advice.chords || []).map(chord => Number(chord.start) + Number(chord.beats)),
+    ...(advice.melody || []).map(note => Number(note.start) + Number(note.duration)),
+  );
+  const rangeFrom = loop ? Number(loop.from) : 0;
+  const rangeTo = loop ? Number(loop.to) : scoreEnd;
+  const length = Math.max(.25, rangeTo - rangeFrom);
+  const wrap = beat => ((beat % length) + length) % length;
+  const clip = (start, duration) => {
+    const from = Math.max(Number(start), rangeFrom);
+    const to = Math.min(Number(start) + Number(duration), rangeTo);
+    return to > from ? { start: wrap(from), duration: to - from } : null;
+  };
+  const events = [];
+  for (const chord of advice.chords || []) {
+    const timing = clip(chord.start, Number(chord.beats) * .98);
+    if (!timing) continue;
+    for (const note of chord.midi || []) events.push({ note, ...timing, velocity: 42 });
+  }
+  for (const note of advice.melody || []) {
+    const timing = clip(note.start, Number(note.duration) * .95);
+    if (timing) events.push({ note: note.pitch, ...timing, velocity: 96 });
+  }
+  window.harmonyCanvasSetPlaybackTimeline({ length, events });
+}
+
 function syncLabDawPlayback(state = {}) {
   if (!document.getElementById("lab-score") || !window.currentLabAdvice) return;
-  const wasPlaying = !!window.labDawWasPlaying;
   const isPlaying = !!state.playing;
-  if (isPlaying && (!wasPlaying || !ptmAudio.isPlaying())) {
-    labPlayScore(document.querySelector(".lab-tool-play"), { daw: true, startBeat: Number(state.ppq) || 0 });
-  } else if (!isPlaying && wasPlaying) {
-    labStopScore();
-  }
+  const advice = window.currentLabAdvice;
+  const loop = window.labLoop;
+  const scoreEnd = Math.max(1,
+    ...(advice.chords || []).map(chord => chord.start + chord.beats),
+    ...(advice.melody || []).map(note => note.start + note.duration));
+  const rangeFrom = loop ? loop.from : 0;
+  const rangeLength = loop ? Math.max(.25, loop.to - loop.from) : scoreEnd;
+  const beat = rangeFrom + ((((Number(state.ppq) || 0) - rangeFrom) % rangeLength) + rangeLength) % rangeLength;
+  const span = LAB_BARS_PER_SYSTEM * (advice.timeline?.beats_per_bar || 4);
+  const active = Math.floor(beat / span);
+  document.querySelectorAll(".lab-system").forEach((system, index) => {
+    const head = system.querySelector(".lab-playhead");
+    if (!head) return;
+    head.hidden = !isPlaying || index !== active;
+    if (isPlaying && index === active) head.style.setProperty("--pos", beat - index * span);
+  });
+  document.querySelectorAll(".lab-tool-play").forEach(button => button.classList.toggle("is-playing", isPlaying));
   window.labDawWasPlaying = isPlaying;
 }
 
 /** Play harmony and melody together on the score's own timeline. */
 function labPlayScore(button, options = {}) {
+  if (window.labDawTransport?.playing && !options.daw) return toast("Playback следует за Ableton Live");
   if (ptmAudio.isPlaying()) {
     if (options.daw) return;
     return labStopScore();
