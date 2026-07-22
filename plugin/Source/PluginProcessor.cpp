@@ -9,6 +9,7 @@ namespace
 {
 std::mutex instanceRegistryMutex;
 std::unordered_set<std::string> activeInstanceIds;
+bool sidecarWasUsed = false;
 
 bool claimInstanceId (const juce::String& id)
 {
@@ -16,10 +17,29 @@ bool claimInstanceId (const juce::String& id)
     return activeInstanceIds.insert (id.toStdString()).second;
 }
 
-void releaseInstanceId (const juce::String& id)
+bool releaseInstanceId (const juce::String& id)
 {
     const std::scoped_lock lock (instanceRegistryMutex);
     activeInstanceIds.erase (id.toStdString());
+    return activeInstanceIds.empty() && sidecarWasUsed;
+}
+
+void noteSidecarUsed()
+{
+    const std::scoped_lock lock (instanceRegistryMutex);
+    sidecarWasUsed = true;
+}
+
+void requestSidecarShutdown()
+{
+    juce::StreamingSocket socket;
+    if (! socket.connect ("127.0.0.1", 8787, 150))
+        return;
+    const juce::String request = "POST /api/shutdown HTTP/1.1\r\n"
+                                 "Host: 127.0.0.1\r\n"
+                                 "Content-Length: 0\r\n"
+                                 "Connection: close\r\n\r\n";
+    socket.write (request.toRawUTF8(), request.getNumBytesAsUTF8());
 }
 }
 
@@ -33,7 +53,8 @@ HarmonyCanvasProcessor::HarmonyCanvasProcessor()
 
 HarmonyCanvasProcessor::~HarmonyCanvasProcessor()
 {
-    releaseInstanceId (instanceId);
+    if (releaseInstanceId (instanceId))
+        requestSidecarShutdown();
 }
 
 void HarmonyCanvasProcessor::prepareToPlay (double sampleRate, int)
@@ -275,6 +296,11 @@ HarmonyCanvasProcessor::TransportSnapshot HarmonyCanvasProcessor::getTransportSn
 juce::String HarmonyCanvasProcessor::getInstanceId() const
 {
     return instanceId;
+}
+
+void HarmonyCanvasProcessor::markSidecarUsed()
+{
+    noteSidecarUsed();
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

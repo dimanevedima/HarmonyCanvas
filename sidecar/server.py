@@ -308,6 +308,10 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
         except ValueError as error:
             self.send_error_json(HTTPStatus.BAD_REQUEST, str(error))
             return
+        if parts == ["api", "shutdown"]:
+            self.send_json({"ok": True, "shutting_down": True})
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
+            return
         if parts == ["api", "sketches"]:
             self.send_json(self.store.create(payload), HTTPStatus.CREATED)
             return

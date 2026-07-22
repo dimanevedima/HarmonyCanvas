@@ -1,6 +1,9 @@
 from pathlib import Path
+import json
+import threading
+from urllib.request import Request, urlopen
 
-from sidecar.server import SketchStore, build_advice
+from sidecar.server import HarmonyCanvasServer, SketchStore, build_advice
 
 
 def test_store_seeds_and_round_trips_without_referencecompare(tmp_path: Path):
@@ -49,3 +52,21 @@ def test_plugin_instances_receive_isolated_sketches(tmp_path: Path):
     assert store.get(second["id"])["chord_input"] == ""
     assert [item["id"] for item in store.list("instance-a")] == [first["id"]]
     assert [item["id"] for item in store.list("instance-b")] == [second["id"]]
+
+
+def test_shutdown_endpoint_stops_sidecar_without_waiting_for_parent(tmp_path: Path):
+    store = SketchStore(tmp_path / "sketches.json")
+    store.ensure_seed()
+    server = HarmonyCanvasServer(("127.0.0.1", 0), store)
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    try:
+        port = server.server_address[1]
+        request = Request(f"http://127.0.0.1:{port}/api/shutdown", data=b"", method="POST")
+        with urlopen(request, timeout=2) as response:
+            payload = json.loads(response.read())
+        thread.join(timeout=2)
+        assert payload["shutting_down"] is True
+        assert not thread.is_alive()
+    finally:
+        server.server_close()

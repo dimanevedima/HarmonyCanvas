@@ -57,6 +57,7 @@ public:
     void setPlaybackTimeline (std::vector<PlaybackEvent> events, double lengthBeats);
     TransportSnapshot getTransportSnapshot() const noexcept;
     juce::String getInstanceId() const;
+    void markSidecarUsed();
 
 private:
     struct PlaybackTimeline

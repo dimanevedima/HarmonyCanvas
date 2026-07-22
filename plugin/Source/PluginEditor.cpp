@@ -246,6 +246,7 @@ HarmonyCanvasEditor::HarmonyCanvasEditor (HarmonyCanvasProcessor& owner)
       processor (owner),
       browser (makeBrowserOptions (owner))
 {
+    processor.markSidecarUsed();
     addAndMakeVisible (browser);
     addAndMakeVisible (startupStatus);
     startupStatus.setText ("Starting Harmony Canvas…", juce::dontSendNotification);
