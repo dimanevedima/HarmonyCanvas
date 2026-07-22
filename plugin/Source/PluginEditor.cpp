@@ -131,7 +131,7 @@ juce::String HarmonyCanvasEditor::getLabUrl()
     if (const auto* custom = std::getenv ("HARMONY_CANVAS_LAB_URL"))
         return custom;
 
-    return "http://127.0.0.1:8000/?focus=lab";
+    return "http://127.0.0.1:8787/?focus=lab";
 }
 
 HarmonyCanvasEditor::HarmonyCanvasEditor (HarmonyCanvasProcessor& owner)
