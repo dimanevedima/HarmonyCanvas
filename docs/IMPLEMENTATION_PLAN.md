@@ -18,7 +18,7 @@
 - [x] описать JS → native MIDI preview adapter;
 - [x] настроить Windows cloud build через GitHub Actions;
 - [x] собрать и установить первый Harmony Canvas VST3;
-- [ ] загрузить существующий Harmony Lab UI внутри Live;
+- [x] загрузить существующий Harmony Lab UI внутри Live;
 - [ ] проверить add/move/resize/delete и MIDI preview через receiver track;
 - [ ] выделить lab frontend из ReferenceCompare в самостоятельный web bundle.
 
