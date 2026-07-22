@@ -2,7 +2,8 @@
 #include "PluginEditor.h"
 
 HarmonyCanvasProcessor::HarmonyCanvasProcessor()
-    : AudioProcessor (BusesProperties())
+    : AudioProcessor (BusesProperties()
+        .withOutput ("Output", juce::AudioChannelSet::stereo(), true))
 {
 }
 
@@ -16,9 +17,10 @@ void HarmonyCanvasProcessor::releaseResources()
     previewMessages.reset (44100.0);
 }
 
-bool HarmonyCanvasProcessor::isBusesLayoutSupported (const BusesLayout&) const
+bool HarmonyCanvasProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    return true;
+    return layouts.getMainInputChannelSet().isDisabled()
+        && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
 void HarmonyCanvasProcessor::processBlock (juce::AudioBuffer<float>& audio,
