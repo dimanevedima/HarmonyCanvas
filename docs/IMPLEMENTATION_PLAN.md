@@ -16,8 +16,9 @@
 - [x] подтвердить, что Harmony Lab имеет изолированный `focus=lab` mode;
 - [x] создать JUCE 8 VST3/Standalone shell с WebView2;
 - [x] описать JS → native MIDI preview adapter;
-- [ ] установить локальный MSVC/CMake toolchain;
-- [ ] собрать VST3 и загрузить существующий Harmony Lab UI внутри Live;
+- [x] настроить Windows cloud build через GitHub Actions;
+- [x] собрать и установить первый Harmony Canvas VST3;
+- [ ] загрузить существующий Harmony Lab UI внутри Live;
 - [ ] проверить add/move/resize/delete и MIDI preview через receiver track;
 - [ ] выделить lab frontend из ReferenceCompare в самостоятельный web bundle.
 

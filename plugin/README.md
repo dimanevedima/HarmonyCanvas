@@ -21,3 +21,9 @@ cmake --build build --config Release --target HarmonyCanvas_VST3
 ```
 
 JUCE 8.0.13 загружается CMake через `FetchContent`.
+
+## Облачная сборка
+
+Workflow `.github/workflows/build-windows.yml` собирает VST3 на Windows runner
+при изменениях в `plugin/`. Готовый bundle публикуется как artifact
+`HarmonyCanvas-Windows-VST3` на 14 дней.
