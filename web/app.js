@@ -4005,6 +4005,7 @@ function renderLab(container, sketches, sketch, advice) {
     <aside class="lab-sketch-list"><div class="section-head"><h2>Эскизы</h2><button class="icon-mini" onclick="createLabSketch()" aria-label="Новый эскиз">+</button></div>${sketches.map(item => `<button class="lab-sketch-link ${item.id === sketch.id ? "active" : ""}" onclick="currentSketchId='${item.id}';loadLab()"><strong>${esc(item.title)}</strong><small>${esc(item.tonic)} · ${esc(item.mode)} · ${item.bpm} BPM</small></button>`).join("")}</aside>
     <div class="lab-workspace">
       <header class="lab-toolbar">${labCompactToolbarHtml(sketch)}</header>
+      <div id="lab-voices-bar" class="lab-voices-bar">${labVoicesBarHtml(advice)}</div>
       <section class="lab-insert">${labInsertHtml(advice)}</section>
       <div class="lab-stage">
         <div id="lab-score" class="lab-score-panel">${labScoreHtml(advice)}</div>
@@ -4076,6 +4077,7 @@ function labScoreHtml(advice) {
 function labSystemHtml(advice, timeline, offset, span, systemIndex) {
   const grid = advice.melody_grid || [];
   const selectedNotes = window.labSelectedNotes || [];
+  const activeVoice = window.labActiveVoice || 1;
   const inSystem = at => at >= offset && at < offset + span;
   const bars = Array.from({ length: LAB_BARS_PER_SYSTEM }, (_, bar) =>
     `<span class="lab-bar" style="--at:${bar * timeline.beats_per_bar};--span:${timeline.beats_per_bar}">${systemIndex * LAB_BARS_PER_SYSTEM + bar + 1}</span>`).join("");
@@ -4086,7 +4088,11 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
       .filter(([note]) => note.pitch === row.midi && inSystem(note.start))
       .map(([note, index]) => {
         const noteDeg = note.degree_index === null || note.degree_index === undefined ? "" : `--deg:var(--deg-${note.degree_index + 1});`;
-        return `<i class="lab-note ${note.chord_tone ? "is-chord-tone" : ""} ${note.in_scale ? "" : "is-outside"} ${selectedNotes.includes(index) ? "selected" : ""}" data-note="${index}" style="--start:${note.start - offset};--len:${note.duration};${noteDeg}" onpointerdown="labNotePointerDown(event,${index})" title="${esc(note.name)} · ступень ${esc(note.degree)}${note.chord_symbol ? ` · под ${esc(note.chord_symbol)}` : ""}"><b class="lab-note-grip"></b></i>`;
+        const voice = note.voice || 1;
+        const inactive = voice !== activeVoice;
+        // Inactive voices stay visible but grey and get no pointer handler, so
+        // only the active voice can be selected, moved or resized.
+        return `<i class="lab-note lab-voice-${voice} ${inactive ? "is-inactive" : ""} ${note.chord_tone ? "is-chord-tone" : ""} ${note.in_scale ? "" : "is-outside"} ${selectedNotes.includes(index) ? "selected" : ""}" data-note="${index}" data-voice="${voice}" style="--start:${note.start - offset};--len:${note.duration};${noteDeg}" ${inactive ? "" : `onpointerdown="labNotePointerDown(event,${index})"`} title="${esc(note.name)} · ступень ${esc(note.degree)} · голос ${voice}${note.chord_symbol ? ` · под ${esc(note.chord_symbol)}` : ""}"><b class="lab-note-voice">${voice}</b><b class="lab-note-grip"></b></i>`;
       }).join("");
     // A chromatic row shows no degree: labels like "#6/b7" wrap and wreck the
     // column, and the note name already says what the row is.
@@ -4188,7 +4194,7 @@ function labRowPointerDown(event, midi) {
   const onUp = () => {
     window.removeEventListener("pointerup", onUp);
     if (wasDragged()) return;
-    labNoteEdit("add", { pitch: midi, start: beats, duration: window.labNoteLength || 1 });
+    labNoteEdit("add", { pitch: midi, start: beats, duration: window.labNoteLength || 1, voice: window.labActiveVoice || 1 });
   };
   window.addEventListener("pointerup", onUp);
 }
@@ -4401,6 +4407,61 @@ async function labDeleteSelectedNotes() {
 function setLabNoteLength(value) { window.labNoteLength = Number(value); }
 function setLabSnap(value) { window.labSnapBeats = Number(value); }
 
+// ── Voices and MIDI output routing ──────────────────────────────────────────
+// Chords play on MIDI channel 1; melody voice N plays on channel N+1, so the
+// user can point separate Ableton instrument tracks at each channel.
+
+const LAB_VOICE_COUNT = 4;
+
+function labVoiceMutes() {
+  if (!window.labVoiceMutes) window.labVoiceMutes = { 1: false, 2: false, 3: false, 4: false };
+  return window.labVoiceMutes;
+}
+
+function labVoicesBarHtml(advice) {
+  const active = window.labActiveVoice || 1;
+  const mutes = labVoiceMutes();
+  const counts = {};
+  for (const note of advice?.melody || []) { const v = note.voice || 1; counts[v] = (counts[v] || 0) + 1; }
+  const picks = Array.from({ length: LAB_VOICE_COUNT }, (_, i) => {
+    const v = i + 1;
+    const n = counts[v] || 0;
+    return `<button type="button" class="lab-voice-pick lab-voice-${v} ${v === active ? "active" : ""}" onclick="setLabActiveVoice(${v})" aria-pressed="${v === active}" title="Голос ${v}${n ? ` · ${n} нот · клавиша ${v}` : ` · пусто · клавиша ${v}`}"><b>${v}</b><small>${n || "·"}</small></button>`;
+  }).join("");
+  const chordsMuted = !!window.labChordsMuted;
+  const chordChip = `<button type="button" class="lab-out-chip lab-out-chords ${chordsMuted ? "is-muted" : ""}" onclick="toggleLabChordsMute()" aria-pressed="${!chordsMuted}" title="Аккорды → MIDI-канал 1${chordsMuted ? " · не выводятся" : ""}"><span>Аккорды</span><small>Ch 1</small></button>`;
+  const voiceChips = Array.from({ length: LAB_VOICE_COUNT }, (_, i) => {
+    const v = i + 1;
+    const muted = !!mutes[v];
+    return `<button type="button" class="lab-out-chip lab-voice-${v} ${muted ? "is-muted" : ""}" onclick="toggleLabVoiceMute(${v})" aria-pressed="${!muted}" title="Голос ${v} → MIDI-канал ${v + 1}${muted ? " · не выводится" : ""}"><span>Г${v}</span><small>Ch ${v + 1}</small></button>`;
+  }).join("");
+  return `<div class="lab-voices-edit"><span class="lab-voices-label">Голос</span>${picks}</div>
+    <div class="lab-voices-out"><span class="lab-voices-label" title="В Ableton: MIDI From → Harmony Canvas → нужный канал">Вывод · MIDI-каналы</span>${chordChip}${voiceChips}</div>`;
+}
+
+function labRenderVoicesBar() {
+  if (document.getElementById("lab-voices-bar")) labSetRegion("lab-voices-bar", labVoicesBarHtml(window.currentLabAdvice));
+}
+
+function setLabActiveVoice(voice) {
+  window.labActiveVoice = Math.min(LAB_VOICE_COUNT, Math.max(1, Number(voice) || 1));
+  labRenderVoicesBar();
+  labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
+}
+
+function toggleLabVoiceMute(voice) {
+  const mutes = labVoiceMutes();
+  mutes[voice] = !mutes[voice];
+  labRenderVoicesBar();
+  syncNativePlaybackTimeline();
+}
+
+function toggleLabChordsMute() {
+  window.labChordsMuted = !window.labChordsMuted;
+  labRenderVoicesBar();
+  syncNativePlaybackTimeline();
+}
+
 /** Editor shortcuts, ignored while typing into a field. */
 document.addEventListener("keydown", event => {
   if (!currentSketchId || !document.getElementById("lab-score")) return;
@@ -4427,6 +4488,9 @@ document.addEventListener("keydown", event => {
       event.preventDefault();
       labEdit("delete", "", window.labSelectedChordIndex);
     }
+  } else if (event.key >= "1" && event.key <= "4") {
+    event.preventDefault();
+    setLabActiveVoice(Number(event.key));
   } else if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
     const chords = window.currentLabAdvice?.chords || [];
     if (!chords.length) return;
@@ -4889,15 +4953,20 @@ function syncNativePlaybackTimeline(advice = window.currentLabAdvice) {
     const to = Math.min(Number(start) + Number(duration), rangeTo);
     return to > from ? { start: wrap(from), duration: to - from } : null;
   };
+  // Chords → MIDI channel 1, voice N → channel N+1. Muted parts are simply
+  // left out of the timeline the audio processor renders.
+  const mutes = labVoiceMutes();
   const events = [];
-  for (const chord of advice.chords || []) {
+  if (!window.labChordsMuted) for (const chord of advice.chords || []) {
     const timing = clip(chord.start, Number(chord.beats) * .98);
     if (!timing) continue;
-    for (const note of chord.midi || []) events.push({ note, ...timing, velocity: 42 });
+    for (const note of chord.midi || []) events.push({ note, ...timing, velocity: 42, channel: 1 });
   }
   for (const note of advice.melody || []) {
+    const voice = note.voice || 1;
+    if (mutes[voice]) continue;
     const timing = clip(note.start, Number(note.duration) * .95);
-    if (timing) events.push({ note: note.pitch, ...timing, velocity: 96 });
+    if (timing) events.push({ note: note.pitch, ...timing, velocity: 96, channel: Math.min(16, voice + 1) });
   }
   window.harmonyCanvasSetPlaybackTimeline({ length, events });
 }
@@ -4946,9 +5015,10 @@ function labPlayScore(button, options = {}) {
   const requestedBeat = Number(options.startBeat) || rangeFrom;
   const normalizedStartBeat = rangeFrom + (((requestedBeat - rangeFrom) % rangeLength) + rangeLength) % rangeLength;
   const within = item => !loop || (item.at >= loop.from && item.at < loop.to);
+  const mutes = labVoiceMutes();
   const events = [
-    ...(advice.chords || []).map(chord => ({ midis: chord.midi, at: chord.start, dur: chord.beats * 0.98, vol: 0.16 })),
-    ...(advice.melody || []).map(note => ({ midis: [note.pitch], at: note.start, dur: note.duration * 0.95, vol: 0.3 })),
+    ...(window.labChordsMuted ? [] : (advice.chords || []).map(chord => ({ midis: chord.midi, at: chord.start, dur: chord.beats * 0.98, vol: 0.16 }))),
+    ...(advice.melody || []).filter(note => !mutes[note.voice || 1]).map(note => ({ midis: [note.pitch], at: note.start, dur: note.duration * 0.95, vol: 0.3 })),
   ].filter(within).map(item => ({ ...item, at: (item.at - (loop ? loop.from : 0)) * beatSec, dur: item.dur * beatSec }));
   if (!events.length) return toast("В выбранном лупе нечего играть");
   const systems = [...document.querySelectorAll(".lab-system")];

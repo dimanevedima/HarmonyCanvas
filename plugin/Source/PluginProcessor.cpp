@@ -172,6 +172,7 @@ void HarmonyCanvasProcessor::setPlaybackTimeline (std::vector<PlaybackEvent> eve
     {
         event.note = juce::jlimit (0, 127, event.note);
         event.velocity = juce::jlimit (1, 127, event.velocity);
+        event.channel = juce::jlimit (1, 16, event.channel);
         event.start = std::max (0.0, event.start);
         event.duration = std::max (0.001, event.duration);
         if (event.start < next->lengthBeats)
@@ -188,8 +189,10 @@ void HarmonyCanvasProcessor::setPlaybackTimeline (std::vector<PlaybackEvent> eve
 
 void HarmonyCanvasProcessor::stopHostPlayback (juce::MidiBuffer& midi, int sampleOffset)
 {
-    if (! activePlaybackNotes.empty())
-        midi.addEvent (juce::MidiMessage::allNotesOff (1), sampleOffset);
+    // Send an explicit note-off on each note's own channel; parts are spread
+    // across channels 1..5, so a single all-notes-off would miss most of them.
+    for (const auto& active : activePlaybackNotes)
+        midi.addEvent (juce::MidiMessage::noteOff (active.channel, active.note), sampleOffset);
     activePlaybackNotes.clear();
     wasHostPlaying = false;
 }
@@ -223,7 +226,7 @@ void HarmonyCanvasProcessor::renderHostPlayback (juce::MidiBuffer& midi, int num
         {
             const int offset = juce::jlimit (0, numSamples - 1,
                 static_cast<int> (std::round ((it->offPpq - blockStart) / ppqPerSample)));
-            midi.addEvent (juce::MidiMessage::noteOff (1, it->note), offset);
+            midi.addEvent (juce::MidiMessage::noteOff (it->channel, it->note), offset);
             it = activePlaybackNotes.erase (it);
         }
         else
@@ -237,16 +240,16 @@ void HarmonyCanvasProcessor::renderHostPlayback (juce::MidiBuffer& midi, int num
     {
         const double cycle = timeline->lengthBeats;
         constexpr double epsilon = 1.0e-9;
-        const auto rememberNoteOff = [&] (int note, double offPpq) {
+        const auto rememberNoteOff = [&] (int note, int channel, double offPpq) {
             if (offPpq < blockEnd)
             {
                 const int offset = juce::jlimit (0, numSamples - 1,
                     static_cast<int> (std::round ((offPpq - blockStart) / ppqPerSample)));
-                midi.addEvent (juce::MidiMessage::noteOff (1, note), offset);
+                midi.addEvent (juce::MidiMessage::noteOff (channel, note), offset);
             }
             else
             {
-                activePlaybackNotes.push_back ({ note, offPpq });
+                activePlaybackNotes.push_back ({ note, offPpq, channel });
             }
         };
         for (const auto& event : timeline->events)
@@ -256,9 +259,9 @@ void HarmonyCanvasProcessor::renderHostPlayback (juce::MidiBuffer& midi, int num
                 const double previous = event.start + std::floor ((blockStart - event.start) / cycle) * cycle;
                 if (previous < blockStart - epsilon && previous + event.duration > blockStart + epsilon)
                 {
-                    midi.addEvent (juce::MidiMessage::noteOn (1, event.note,
+                    midi.addEvent (juce::MidiMessage::noteOn (event.channel, event.note,
                                    static_cast<juce::uint8> (event.velocity)), 0);
-                    rememberNoteOff (event.note, previous + event.duration);
+                    rememberNoteOff (event.note, event.channel, previous + event.duration);
                 }
             }
 
@@ -270,9 +273,9 @@ void HarmonyCanvasProcessor::renderHostPlayback (juce::MidiBuffer& midi, int num
                     continue;
                 const int offset = juce::jlimit (0, numSamples - 1,
                     static_cast<int> (std::round ((occurrence - blockStart) / ppqPerSample)));
-                midi.addEvent (juce::MidiMessage::noteOn (1, event.note,
+                midi.addEvent (juce::MidiMessage::noteOn (event.channel, event.note,
                                static_cast<juce::uint8> (event.velocity)), offset);
-                rememberNoteOff (event.note, occurrence + event.duration);
+                rememberNoteOff (event.note, event.channel, occurrence + event.duration);
             }
         }
     }

@@ -25,6 +25,7 @@ public:
         double start = 0.0;
         double duration = 0.25;
         int velocity = 96;
+        int channel = 1;
     };
 
     HarmonyCanvasProcessor();
@@ -70,6 +71,7 @@ private:
     {
         int note = 60;
         double offPpq = 0.0;
+        int channel = 1;
     };
 
     void renderHostPlayback (juce::MidiBuffer&, int numSamples,

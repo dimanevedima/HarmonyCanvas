@@ -36,6 +36,29 @@ MIDI BRIDGE — Monitor In
 INSTRUMENT / RECORDING TRACK
 ```
 
+## Voices and per-channel MIDI routing
+
+The editor supports up to four melody voices plus the chord lane. Pick the
+active voice in the "Голос" bar (or press 1–4): the active voice keeps its
+harmonic-role colours and is the only one you can edit, while the other voices
+stay visible but greyed and locked.
+
+During DAW playback each part is sent on its own MIDI channel, so you can point
+separate Ableton instrument tracks at each one:
+
+```text
+Chords   → MIDI channel 1
+Voice 1  → MIDI channel 2
+Voice 2  → MIDI channel 3
+Voice 3  → MIDI channel 4
+Voice 4  → MIDI channel 5
+```
+
+On each receiving Ableton track set `MIDI From → Harmony Canvas → Ch. N`. The
+"Вывод · MIDI-каналы" bar has mute toggles for the chords and each voice, so you
+can audition or send one part alone (or several together) without changing the
+Ableton routing. Muting a part also silences it in the built-in preview.
+
 ## Important handoff note
 
 The latest Ableton shutdown hang was investigated with a full ProcDump/WinDbg

@@ -175,6 +175,7 @@ juce::WebBrowserComponent::Options HarmonyCanvasEditor::makeBrowserOptions (Harm
                     static_cast<double> (event->getProperty ("start")),
                     static_cast<double> (event->getProperty ("duration")),
                     clampMidi (event->getProperty ("velocity")),
+                    juce::jlimit (1, 16, static_cast<int> (event->getProperty ("channel"))),
                 });
             }
         }
