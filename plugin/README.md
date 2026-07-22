@@ -1,29 +1,42 @@
-# JUCE WebView shell
+# JUCE WebView VST3 shell
 
-M1 загружает существующий полноэкранный режим Harmony Lab прямо в VST3:
+The plug-in embeds the Harmony Canvas web editor with JUCE 8 and WebView2. In a
+packaged build it starts `HarmonyCanvasSidecar.exe` from
+`Contents/Resources/`, waits for `127.0.0.1:8787`, and opens:
 
-`http://127.0.0.1:8000/?focus=lab`
+```text
+http://127.0.0.1:8787/?focus=lab&instance=<persistent-instance-id>
+```
 
-Так сохраняются существующие HTML/CSS/JS, chord editor и piano roll. Встроенный
-WebView2 bridge заменяет WebAudio preview на MIDI output плагина.
+The instance ID is stored in the plug-in state. A restored instance reclaims
+its sketch; duplicating a currently active instance keeps a fresh ID so both
+copies do not edit the same MIDI.
 
-Для другого адреса перед запуском DAW можно задать переменную окружения
-`HARMONY_CANVAS_LAB_URL`.
+## Native responsibilities
 
-## Сборка
+- WebView2 lifecycle and JavaScript/native events;
+- preview note-on/note-off MIDI;
+- host transport snapshots (tempo, PPQ, meter and play state);
+- sample-block timeline playback in `AudioProcessor::processBlock`;
+- persistent per-instance identity;
+- packaged sidecar discovery, startup and final-instance shutdown request.
 
-Требуются CMake 3.22+, Visual Studio 2022 Build Tools с workload
-`Desktop development with C++` и WebView2 Runtime.
+Timeline playback intentionally lives in the processor rather than the editor.
+Destroying or hiding the editor must therefore not stop playback.
+
+## Local build
 
 ```powershell
 cmake -S plugin -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Release --target HarmonyCanvas_VST3
 ```
 
-JUCE 8.0.13 загружается CMake через `FetchContent`.
+JUCE 8.0.13 is fetched by CMake. A local build does not automatically package a
+sidecar unless it is copied into the VST3 resources; use
+`HARMONY_CANVAS_SIDECAR` or `HARMONY_CANVAS_LAB_URL` during development.
 
-## Облачная сборка
+## CI build
 
-Workflow `.github/workflows/build-windows.yml` собирает VST3 на Windows runner
-при изменениях в `plugin/`. Готовый bundle публикуется как artifact
-`HarmonyCanvas-Windows-VST3` на 14 дней.
+`.github/workflows/build-windows.yml` creates and smoke-tests the PyInstaller
+sidecar, builds the VST3, embeds the executable and uploads the complete bundle
+as `HarmonyCanvas-Windows-VST3` for 14 days.

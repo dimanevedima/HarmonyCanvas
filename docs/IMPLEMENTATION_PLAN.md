@@ -1,59 +1,82 @@
-# План реализации
+# Implementation plan
 
-## M0 — контракт и read-only bridge
+Status updated 22 July 2026. Detailed context and the current external shutdown
+issue are in [HANDOFF.md](HANDOFF.md).
 
-- [x] зафиксировать ТЗ и архитектуру;
-- [x] описать JSON-контракты;
-- [x] создать CLI `Pull Selected Clip`;
-- [x] проверить CLI на реальном MIDI-клипе Live;
-- [x] добавить fixture и контрактный тест payload.
+## M0 — contracts and read-only Ableton bridge
 
-Результат: выбранный клип стабильно читается в нормализованный JSON без записи.
+- [x] product and architecture specifications;
+- [x] versioned JSON contracts;
+- [x] AbletonJS `Pull Selected Clip` CLI;
+- [x] validation against a real Live MIDI clip;
+- [x] fixture and protocol tests.
 
-## M1 — JUCE WebView prototype
+## M1 — embedded working prototype
 
-- [x] проверить статический visual spike внутри plugdata VST3;
-- [x] подтвердить, что Harmony Lab имеет изолированный `focus=lab` mode;
-- [x] создать JUCE 8 VST3/Standalone shell с WebView2;
-- [x] описать JS → native MIDI preview adapter;
-- [x] настроить Windows cloud build через GitHub Actions;
-- [x] собрать и установить первый Harmony Canvas VST3;
-- [x] загрузить существующий Harmony Lab UI внутри Live;
-- [x] проверить MIDI preview через receiver track и внешний инструмент;
-- [ ] выполнить plugin-mode regression для add/move/resize/delete;
-- [ ] выделить lab frontend из ReferenceCompare в самостоятельный web bundle.
+- [x] validate the visual idea in plugdata;
+- [x] separate Harmony Canvas from ReferenceCompare;
+- [x] port the existing Harmony Lab UI, harmony engine and editor;
+- [x] JUCE 8 VST3/Standalone shell with WebView2;
+- [x] JavaScript-to-native MIDI preview;
+- [x] packaged one-file sidecar bundled with the VST3;
+- [x] Windows GitHub Actions build and smoke test;
+- [x] working MIDI routing to an Ableton instrument track;
+- [x] remove unrelated lower laboratory sections from plug-in mode.
 
-Результат: существующий полноценный редактор работает внутри Live без
-повторной реализации его GUI в Pure Data.
+## M2 — DAW transport and reliable playback
 
-## M2 — live Pull и состояние
+- [x] receive host BPM, meter, PPQ and play state;
+- [x] show Ableton tempo in the compact transport;
+- [x] render timeline playback in the audio processor;
+- [x] preserve playback while notes are added/edited;
+- [x] preserve playback when the plug-in editor closes;
+- [x] send All Notes Off on stop/jump;
+- [ ] expose and test explicit editor loop boundaries against host PPQ;
+- [ ] run a broader transport regression: start mid-note, seek, loop, tempo
+  automation and meter changes.
 
-- [ ] local transport bridge ↔ JUCE/WebView;
-- [ ] кнопка Pull;
-- [ ] recovery snapshot;
-- [ ] clip locator и fingerprint;
-- [ ] отображение connection/conflict state.
+## M3 — instance state and lifecycle
 
-## M3 — Commit
+- [x] persistent plug-in instance UUID (`harmony-canvas-state-v2`);
+- [x] isolated sidecar sketches per instance;
+- [x] new identity when an active instance is duplicated;
+- [x] one-time claim of legacy unowned sketches;
+- [x] explicit sidecar shutdown endpoint and parent-PID fallback;
+- [ ] embed the full musical snapshot in plug-in state so a Live Set is
+  self-contained and portable;
+- [ ] define deterministic merge/recovery behaviour when local and embedded
+  snapshots differ;
+- [ ] test save/reload, Save As, track duplication and cross-project copying.
 
-- [ ] dry-run validation;
-- [ ] безопасная модификация исходного clip;
-- [ ] конфликт внешней редакции;
-- [ ] Commit as New;
-- [ ] проверка Live Undo.
+## M4 — core editor workflow
 
-## M4 — MIDI drag-out
+- [ ] full vertical MIDI 0–127 scrolling and useful default register;
+- [ ] Undo/Redo with keyboard shortcuts;
+- [ ] resizable loop edges and independent Loop On/Off;
+- [ ] compact top bar: Play/Stop, tonic, mode and meter;
+- [ ] compact text chord entry;
+- [ ] chord block move/resize and palette-to-lane drag/drop;
+- [ ] up to four voices with active-voice editing and locked ghost voices;
+- [ ] focused regression for add/move/resize/delete/copy/paste.
 
-- [ ] минимальный native file-drag proof of concept;
-- [ ] временный SMF writer;
-- [ ] внешний drag в Live 12.4.x;
-- [ ] cache TTL cleanup;
-- [ ] интерфейс между web editor и JUCE drag service.
+## M5 — Live clip exchange and MIDI drag
 
-## M5 — продуктовый MVP
+- [ ] connect the existing AbletonJS Pull prototype to the embedded UI;
+- [ ] clip locator and content fingerprint;
+- [ ] safe Commit with conflict detection;
+- [ ] Commit as New and Live Undo validation;
+- [ ] native SMF drag-out;
+- [ ] separate drag-out payloads for chords and melodies;
+- [ ] managed temporary-file cleanup;
+- [ ] polished Ableton routing template.
 
-- [ ] Ableton template;
-- [ ] загрузка гармонии из ReferenceCompare;
-- [ ] Roles/Degrees modes;
-- [ ] zoom, scroll, marquee и keyboard shortcuts;
-- [ ] полный acceptance test из PRODUCT_SPEC.
+## M6 — release hardening
+
+- [ ] resolve the external LivePilot `udpreceive 9881` shutdown deadlock or
+  document a verified compatibility workaround;
+- [ ] installer/uninstaller and versioned release artifacts;
+- [ ] clean-machine installation test;
+- [ ] performance checks with 2,000 notes;
+- [ ] complete acceptance test from `PRODUCT_SPEC.md`;
+- [ ] crash/hang diagnostics policy that does not leave multi-gigabyte dumps on
+  the user's system.

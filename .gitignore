@@ -8,3 +8,4 @@ plugin/build/
 .idea/
 *.log
 .artifacts/
+*.dmp
