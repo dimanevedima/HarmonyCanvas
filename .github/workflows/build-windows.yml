@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - "plugin/**"
+      - "sidecar/**"
+      - "web/**"
       - ".github/workflows/build-windows.yml"
 
 permissions:
@@ -22,6 +24,43 @@ jobs:
 
       - name: Download WebView2 SDK
         run: nuget install Microsoft.Web.WebView2 -OutputDirectory webview2 -NonInteractive
+
+      - name: Build standalone sidecar
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pyinstaller
+          pyinstaller --noconfirm --clean --onefile --noconsole `
+            --name HarmonyCanvasSidecar `
+            --paths . `
+            --add-data "web;web" `
+            --add-data "sidecar/data;sidecar/data" `
+            sidecar/server.py
+
+      - name: Smoke-test packaged sidecar
+        shell: pwsh
+        run: |
+          $data = Join-Path $env:RUNNER_TEMP "harmony-canvas-smoke.json"
+          $process = Start-Process -WindowStyle Hidden -FilePath "dist/HarmonyCanvasSidecar.exe" `
+            -ArgumentList "--port", "18787", "--data", $data -PassThru
+          try {
+            $ready = $false
+            foreach ($attempt in 1..60) {
+              try {
+                $health = Invoke-RestMethod "http://127.0.0.1:18787/api/health"
+                $ready = $true
+                break
+              } catch {
+                Start-Sleep -Milliseconds 250
+              }
+            }
+            if (-not $ready) { throw "Packaged sidecar did not become ready" }
+            $page = Invoke-WebRequest "http://127.0.0.1:18787/?focus=lab" -UseBasicParsing
+            if ($page.StatusCode -ne 200 -or $page.Content -notmatch "lab-content") {
+              throw "Packaged Harmony Lab page failed its smoke test"
+            }
+          } finally {
+            Stop-Process -Id $process.Id -ErrorAction SilentlyContinue
+          }
 
       - name: Configure JUCE project
         run: >-
@@ -42,6 +81,9 @@ jobs:
           if (-not (Test-Path -LiteralPath $source)) {
             throw "VST3 bundle was not produced at $source"
           }
+          $resources = Join-Path $source "Contents/Resources"
+          New-Item -ItemType Directory -Path $resources -Force | Out-Null
+          Copy-Item -LiteralPath "dist/HarmonyCanvasSidecar.exe" -Destination $resources
           New-Item -ItemType Directory -Path artifact -Force | Out-Null
           Copy-Item -LiteralPath $source -Destination artifact -Recurse
 

@@ -1,6 +1,10 @@
 #include "PluginEditor.h"
 #include <cstdlib>
 
+#if JUCE_WINDOWS
+ #include <windows.h>
+#endif
+
 namespace
 {
 constexpr auto bridgeScript = R"JS(
@@ -87,6 +91,25 @@ int clampMidi (const juce::var& value)
 {
     return juce::jlimit (0, 127, static_cast<int> (value));
 }
+
+juce::File currentPluginModule()
+{
+#if JUCE_WINDOWS
+    HMODULE module = nullptr;
+    if (GetModuleHandleExW (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+                                | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCWSTR> (&bridgeScript),
+                            &module) != 0)
+    {
+        wchar_t path[32768] {};
+        const auto length = GetModuleFileNameW (module, path,
+                                                 static_cast<DWORD> (sizeof (path) / sizeof (path[0])));
+        if (length > 0)
+            return juce::File (juce::String (path, static_cast<int> (length)));
+    }
+#endif
+    return {};
+}
 }
 
 juce::WebBrowserComponent::Options HarmonyCanvasEditor::makeBrowserOptions (HarmonyCanvasProcessor& processor)
@@ -134,19 +157,98 @@ juce::String HarmonyCanvasEditor::getLabUrl()
     return "http://127.0.0.1:8787/?focus=lab";
 }
 
+juce::File HarmonyCanvasEditor::findSidecarExecutable()
+{
+    if (const auto* custom = std::getenv ("HARMONY_CANVAS_SIDECAR"))
+        return juce::File (custom);
+
+    const auto module = currentPluginModule();
+    if (module.getFullPathName().isEmpty())
+        return {};
+
+    return module.getParentDirectory()
+                 .getParentDirectory()
+                 .getChildFile ("Resources")
+                 .getChildFile ("HarmonyCanvasSidecar.exe");
+}
+
+bool HarmonyCanvasEditor::isSidecarReady()
+{
+    juce::StreamingSocket socket;
+    return socket.connect ("127.0.0.1", 8787, 80);
+}
+
+void HarmonyCanvasEditor::launchSidecar()
+{
+    if (isSidecarReady())
+        return;
+
+    const auto executable = findSidecarExecutable();
+    if (! executable.existsAsFile())
+    {
+        startupStatus.setText ("Harmony Canvas sidecar is missing. Reinstall the plug-in.",
+                               juce::dontSendNotification);
+        return;
+    }
+
+    juce::StringArray arguments { executable.getFullPathName(), "--host", "127.0.0.1", "--port", "8787" };
+#if JUCE_WINDOWS
+    arguments.add ("--parent-pid");
+    arguments.add (juce::String (static_cast<int> (GetCurrentProcessId())));
+#endif
+    if (! sidecarProcess.start (arguments, 0))
+        startupStatus.setText ("Could not start the Harmony Canvas sidecar.", juce::dontSendNotification);
+}
+
 HarmonyCanvasEditor::HarmonyCanvasEditor (HarmonyCanvasProcessor& owner)
     : AudioProcessorEditor (&owner),
       processor (owner),
       browser (makeBrowserOptions (owner))
 {
     addAndMakeVisible (browser);
+    addAndMakeVisible (startupStatus);
+    startupStatus.setText ("Starting Harmony Canvas…", juce::dontSendNotification);
+    startupStatus.setJustificationType (juce::Justification::centred);
+    startupStatus.setColour (juce::Label::backgroundColourId, juce::Colour (0xfff7f5ef));
+    startupStatus.setColour (juce::Label::textColourId, juce::Colour (0xff242424));
+    startupStatus.setFont (juce::FontOptions (20.0f));
     setResizable (true, true);
     setResizeLimits (900, 620, 2200, 1400);
     setSize (1500, 940);
-    browser.goToURL (getLabUrl());
+
+    if (std::getenv ("HARMONY_CANVAS_LAB_URL") != nullptr)
+    {
+        startupStatus.setVisible (false);
+        browser.goToURL (getLabUrl());
+    }
+    else
+    {
+        launchSidecar();
+        startTimer (100);
+    }
 }
 
 void HarmonyCanvasEditor::resized()
 {
     browser.setBounds (getLocalBounds());
+    startupStatus.setBounds (getLocalBounds());
+}
+
+void HarmonyCanvasEditor::timerCallback()
+{
+    if (isSidecarReady())
+    {
+        stopTimer();
+        browser.goToURL (getLabUrl());
+        startupStatus.setVisible (false);
+        return;
+    }
+
+    ++startupAttempts;
+    if (startupAttempts == 150)
+    {
+        startupStatus.setText ("Harmony Canvas is taking longer than expected to start.",
+                               juce::dontSendNotification);
+        startTimer (1000);
+    }
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import mimetypes
 import os
@@ -350,10 +351,34 @@ class HarmonyCanvasServer(ThreadingHTTPServer):
         self.store = store
 
 
-def run(host: str = "127.0.0.1", port: int = 8787, data_file: Path | None = None) -> None:
+def stop_with_parent(server: ThreadingHTTPServer, parent_pid: int) -> None:
+    """Shut down the sidecar when its Ableton host process exits on Windows."""
+    if os.name != "nt" or parent_pid <= 0:
+        return
+    synchronize = 0x00100000
+    infinite = 0xFFFFFFFF
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(synchronize, False, parent_pid)
+    if not handle:
+        return
+    try:
+        kernel32.WaitForSingleObject(handle, infinite)
+    finally:
+        kernel32.CloseHandle(handle)
+    server.shutdown()
+
+
+def run(
+    host: str = "127.0.0.1",
+    port: int = 8787,
+    data_file: Path | None = None,
+    parent_pid: int = 0,
+) -> None:
     store = SketchStore(data_file or default_data_file())
     store.ensure_seed()
     server = HarmonyCanvasServer((host, port), store)
+    if parent_pid:
+        threading.Thread(target=stop_with_parent, args=(server, parent_pid), daemon=True).start()
     print(f"Harmony Canvas sidecar: http://{host}:{port}/?focus=lab")
     try:
         server.serve_forever()
@@ -368,8 +393,9 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--data", type=Path, default=None)
+    parser.add_argument("--parent-pid", type=int, default=0)
     args = parser.parse_args()
-    run(args.host, args.port, args.data)
+    run(args.host, args.port, args.data, args.parent_pid)
 
 
 if __name__ == "__main__":
