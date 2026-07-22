@@ -5,6 +5,7 @@ import ctypes
 import json
 import mimetypes
 import os
+import sys
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -21,7 +22,7 @@ from sidecar.harmony_engine import (
 )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
 WEB_ROOT = PROJECT_ROOT / "web"
 
 
