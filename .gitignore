@@ -1,0 +1,7 @@
+bridge/node_modules/
+tests/captures/
+build/
+plugin/build/
+.vs/
+.idea/
+*.log

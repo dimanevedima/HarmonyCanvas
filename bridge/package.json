@@ -1,0 +1,15 @@
+{
+  "name": "harmony-canvas-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pull:selected": "node pull-selected-clip.mjs",
+    "check": "node --check pull-selected-clip.mjs",
+    "test": "node --test test-protocol.mjs"
+  },
+  "dependencies": {
+    "ableton-js": "^4.1.0",
+    "ajv": "^8.17.1"
+  }
+}

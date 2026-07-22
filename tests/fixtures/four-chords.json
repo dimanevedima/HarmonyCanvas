@@ -1,0 +1,21 @@
+{
+  "protocol_version": "1.0",
+  "project_id": "fixture-four-chords",
+  "title": "D Aeolian sketch",
+  "tempo": 120,
+  "meter": { "numerator": 4, "denominator": 4 },
+  "key": { "tonic": "D", "mode": "aeolian" },
+  "clip": null,
+  "chords": [
+    { "id": "chord-1", "symbol": "Bb/D", "start": 0, "duration": 8 },
+    { "id": "chord-2", "symbol": "Am/E", "start": 8, "duration": 8 },
+    { "id": "chord-3", "symbol": "C", "start": 16, "duration": 8 },
+    { "id": "chord-4", "symbol": "Dm13/A", "start": 24, "duration": 8 }
+  ],
+  "notes": [
+    { "id": "note-1", "pitch": 62, "start": 0, "duration": 1, "velocity": 100 },
+    { "id": "note-2", "pitch": 65, "start": 1, "duration": 1, "velocity": 100 },
+    { "id": "note-3", "pitch": 69, "start": 8, "duration": 2, "velocity": 100 },
+    { "id": "note-4", "pitch": 67, "start": 16, "duration": 1, "velocity": 100 }
+  ]
+}

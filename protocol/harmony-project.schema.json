@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://referencecompare.local/harmony-canvas/harmony-project.schema.json",
+  "title": "Harmony Canvas Project",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["protocol_version", "project_id", "meter", "key", "chords", "notes"],
+  "properties": {
+    "protocol_version": { "const": "1.0" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "request_id": { "type": ["string", "null"] },
+    "title": { "type": "string" },
+    "tempo": { "type": "number", "exclusiveMinimum": 0 },
+    "meter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator"],
+      "properties": {
+        "numerator": { "type": "integer", "minimum": 1 },
+        "denominator": { "enum": [1, 2, 4, 8, 16] }
+      }
+    },
+    "key": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["tonic", "mode"],
+      "properties": {
+        "tonic": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "minLength": 1 }
+      }
+    },
+    "clip": { "$ref": "#/$defs/clip" },
+    "chords": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/chord" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/note" }
+    }
+  },
+  "$defs": {
+    "clip": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "properties": {
+        "runtime_id": { "type": ["integer", "string", "null"] },
+        "name": { "type": "string" },
+        "loop_start": { "type": "number" },
+        "loop_end": { "type": "number" },
+        "fingerprint": { "type": ["string", "null"] }
+      }
+    },
+    "chord": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "symbol", "start", "duration"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "symbol": { "type": "string", "minLength": 1 },
+        "start": { "type": "number", "minimum": 0 },
+        "duration": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "note": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "pitch", "start", "duration", "velocity"],
+      "properties": {
+        "id": { "type": ["string", "integer"] },
+        "live_note_id": { "type": ["integer", "null"] },
+        "pitch": { "type": "integer", "minimum": 0, "maximum": 127 },
+        "start": { "type": "number", "minimum": 0 },
+        "duration": { "type": "number", "exclusiveMinimum": 0 },
+        "velocity": { "type": "number", "minimum": 0, "maximum": 127 },
+        "mute": { "type": "boolean" },
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "velocity_deviation": { "type": "number", "minimum": -127, "maximum": 127 },
+        "release_velocity": { "type": "number", "minimum": 0, "maximum": 127 }
+      }
+    }
+  }
+}
