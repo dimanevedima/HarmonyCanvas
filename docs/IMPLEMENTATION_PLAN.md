@@ -19,7 +19,8 @@
 - [x] настроить Windows cloud build через GitHub Actions;
 - [x] собрать и установить первый Harmony Canvas VST3;
 - [x] загрузить существующий Harmony Lab UI внутри Live;
-- [ ] проверить add/move/resize/delete и MIDI preview через receiver track;
+- [x] проверить MIDI preview через receiver track и внешний инструмент;
+- [ ] выполнить plugin-mode regression для add/move/resize/delete;
 - [ ] выделить lab frontend из ReferenceCompare в самостоятельный web bundle.
 
 Результат: существующий полноценный редактор работает внутри Live без
