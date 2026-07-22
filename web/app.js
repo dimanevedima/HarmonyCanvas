@@ -189,6 +189,8 @@ const ICONS = {
   speaker: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 8H5a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h4l5 4V4L9 8Z"/><path d="M16.5 9a4 4 0 0 1 0 6"/></svg>',
   play: '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M7 5.5v13a1 1 0 0 0 1.5.87l11-6.5a1 1 0 0 0 0-1.74l-11-6.5A1 1 0 0 0 7 5.5Z"/></svg>',
   pause: '<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 4 12l5 5"/><path d="M5 12h8a6 6 0 0 1 6 6"/></svg>',
+  redo: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 7 5 5-5 5"/><path d="M19 12h-8a6 6 0 0 0-6 6"/></svg>',
   heart: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7.5-4.8-10-9.3C.7 8.4 2 5 5.4 4.2 8 3.6 10.4 5 12 7c1.6-2 4-3.4 6.6-2.8C22 5 23.3 8.4 22 11.7 19.5 16.2 12 21 12 21Z"/></svg>',
   eye: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
   eyeOff: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A9.9 9.9 0 0 1 12 5c6.5 0 10 7 10 7a15.3 15.3 0 0 1-3.2 4.1M6.6 6.6C3.6 8.4 2 12 2 12s3.5 7 10 7c1.3 0 2.5-.2 3.6-.6"/><path d="M9.9 9.9A3 3 0 0 0 12 15a3 3 0 0 0 2.1-.9"/></svg>',
@@ -3822,6 +3824,10 @@ function labBpmPicker(value) {
 
 function toggleLabBpmPicker(event) {
   event.stopPropagation();
+  if (window.labDawTransport?.available) {
+    toast("Темп синхронизирован с Ableton Live");
+    return;
+  }
   const popover = document.getElementById("lab-bpm-popover");
   const trigger = document.getElementById("lab-bpm-trigger");
   if (!popover || !trigger) return;
@@ -3840,7 +3846,7 @@ function closeLabBpmPicker() {
 }
 
 function previewLabBpm(rawValue) {
-  const value = Math.max(30, Math.min(300, Math.round(Number(rawValue) || 120)));
+  const value = Math.max(30, Math.min(300, Math.round((Number(rawValue) || 120) * 100) / 100));
   const hidden = document.getElementById("lab-bpm");
   const number = document.getElementById("lab-bpm-number");
   const range = document.getElementById("lab-bpm-range");
@@ -3851,6 +3857,36 @@ function previewLabBpm(rawValue) {
   if (display) display.textContent = value;
   return value;
 }
+
+function applyLabDawTransport(state = {}) {
+  if (!state.available || !Number.isFinite(Number(state.bpm))) return;
+  const previous = window.labDawTransport;
+  const receivedAt = performance.now();
+  const bpm = Math.round(Number(state.bpm) * 100) / 100;
+  const expectedPpqDelta = previous ? (receivedAt - (previous.receivedAt || receivedAt)) * Number(previous.bpm || bpm) / 60000 : 0;
+  const actualPpqDelta = previous ? Number(state.ppq || 0) - Number(previous.ppq || 0) : 0;
+  const tempoChanged = !!previous && Math.abs(Number(previous.bpm) - bpm) > .001;
+  const positionJumped = !!previous && previous.playing && state.playing && Math.abs(actualPpqDelta - expectedPpqDelta) > .5;
+  window.labDawTransport = { ...state, bpm, receivedAt };
+  previewLabBpm(bpm);
+  const trigger = document.getElementById("lab-bpm-trigger");
+  if (trigger) {
+    trigger.classList.add("is-daw");
+    trigger.setAttribute("aria-disabled", "true");
+    trigger.setAttribute("aria-label", `Темп Ableton Live: ${bpm} BPM`);
+    trigger.title = "Синхронизировано с Ableton Live";
+  }
+  const source = trigger?.querySelector("span");
+  if (source) source.textContent = "DAW";
+  document.body.dataset.dawPlaying = state.playing ? "true" : "false";
+  if ((tempoChanged || positionJumped) && state.playing && ptmAudio.isPlaying()) {
+    labStopScore();
+    window.labDawWasPlaying = false;
+  }
+  syncLabDawPlayback(window.labDawTransport);
+}
+
+window.addEventListener("harmonycanvas:daw-transport", event => applyLabDawTransport(event.detail));
 
 async function commitLabBpm(rawValue, announce = true) {
   const value = previewLabBpm(rawValue);
@@ -3969,7 +4005,7 @@ function renderLab(container, sketches, sketch, advice) {
   container.innerHTML = `<div class="lab-shell">
     <aside class="lab-sketch-list"><div class="section-head"><h2>Эскизы</h2><button class="icon-mini" onclick="createLabSketch()" aria-label="Новый эскиз">+</button></div>${sketches.map(item => `<button class="lab-sketch-link ${item.id === sketch.id ? "active" : ""}" onclick="currentSketchId='${item.id}';loadLab()"><strong>${esc(item.title)}</strong><small>${esc(item.tonic)} · ${esc(item.mode)} · ${item.bpm} BPM</small></button>`).join("")}</aside>
     <div class="lab-workspace">
-      <header class="lab-toolbar">${labToolbarHtml(sketch)}</header>
+      <header class="lab-toolbar">${labCompactToolbarHtml(sketch)}</header>
       <section class="lab-insert">${labInsertHtml(advice)}</section>
       <div class="lab-stage">
         <div id="lab-score" class="lab-score-panel">${labScoreHtml(advice)}</div>
@@ -3987,7 +4023,13 @@ function renderLab(container, sketches, sketch, advice) {
       ${midiSectionHtml("sketch", sketch.id)}
       <div class="lab-source-policy"><strong>Источники не смешиваются молча</strong><span>Аккорды = авторский замысел · MIDI = сыгранные ноты · объединение только по вашему решению.</span></div>
     </div></div>`;
+  if (labFocusMode()) {
+    const manualInput = container.querySelector(".lab-text-inputs");
+    while (manualInput?.nextElementSibling) manualInput.nextElementSibling.remove();
+  }
   initMidiPanels(container);
+  labSyncHistoryButtons();
+  if (window.harmonyCanvasDawTransport) applyLabDawTransport(window.harmonyCanvasDawTransport);
 }
 
 const LAB_DIAL_COLORS = { 1: "#5da648", 2: "#2f9ed6", 3: "#8f63d8", 4: "#d97286", 5: "#cf4437" };
@@ -4119,6 +4161,7 @@ function labSnap(beats) {
 async function labNoteEdit(op, payload = {}) {
   const requestId = (window.labAdviceRequestId || 0) + 1;
   window.labAdviceRequestId = requestId;
+  labPushHistory();
   try {
     const advice = await api(`/sketches/${currentSketchId}/note-edit`, {
       method: "POST",
@@ -4362,7 +4405,9 @@ document.addEventListener("keydown", event => {
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName) || event.target.isContentEditable) return;
   const key = event.key.toLowerCase();
   if (event.ctrlKey || event.metaKey) {
-    if (key === "z") { event.preventDefault(); labUndo(); }
+    if (key === "z" && event.shiftKey) { event.preventDefault(); labRedo(); }
+    else if (key === "z") { event.preventDefault(); labUndo(); }
+    else if (key === "y") { event.preventDefault(); labRedo(); }
     else if (key === "x") { event.preventDefault(); labCut(); }
     else if (key === "v") { event.preventDefault(); labPaste(); }
     return;
@@ -4410,6 +4455,22 @@ function labToolbarHtml(sketch) {
       ${labFocusMode() ? `<button class="ghost" onclick="window.close()">Закрыть окно</button>` : `<button class="ghost" onclick="openLabFocus()" title="Открыть редактор в отдельном окне на весь экран">⤢ Развернуть</button>`}
       <button class="ghost" onclick="deleteLabSketch()">Удалить</button>
     </div>`;
+}
+
+function labCompactToolbarHtml(sketch) {
+  return `<div class="lab-tool-group lab-tool-transport" aria-label="Воспроизведение">
+      <button type="button" class="lab-tool-icon lab-tool-play" onclick="labPlayScore(this)" aria-label="Проиграть эскиз">${ICONS.play}</button>
+      <button type="button" class="lab-tool-icon lab-tool-stop" onclick="labStopScore()" aria-label="Остановить">${ICONS.stop}</button>
+    </div>
+    <div class="lab-tool-group lab-tool-history" aria-label="История действий">
+      <button type="button" id="lab-undo" class="lab-tool-icon" onclick="labUndo()" aria-label="Отменить действие" title="Отменить · Ctrl+Z">${ICONS.undo}</button>
+      <button type="button" id="lab-redo" class="lab-tool-icon" onclick="labRedo()" aria-label="Повторить действие" title="Повторить · Ctrl+Shift+Z">${ICONS.redo}</button>
+    </div>
+    ${labTonicPicker(sketch.tonic)}
+    <label class="lab-meta-field lab-mode-field"><span class="lab-field-label">Лад</span><select id="lab-mode" onchange="patchLabContext({mode:this.value})">${labModeOptions(sketch.mode)}</select></label>
+    ${labBpmPicker(sketch.bpm)}
+    <label class="lab-meta-field lab-meter-field"><span class="lab-field-label">Размер</span><select id="lab-meter" onchange="patchLabContext({meter:this.value})">${LAB_METERS.map(item => `<option value="${item}" ${item === sketch.meter ? "selected" : ""}>${item}</option>`).join("")}</select></label>
+    <span id="lab-save-state" class="lab-save-state lab-visually-hidden" aria-live="polite">сохранено</span>`;
 }
 
 const LAB_INSERT_TABS = [["mode", "Лад"], ["context", "После аккорда"], ["key", "В тональности"], ["theory", "По теории"]];
@@ -4630,26 +4691,66 @@ async function labEdit(op, value = "", index = null, { keepSelection = false } =
 // nothing; undo replays a whole sketch state rather than inverting operations.
 
 const labHistory = [];
+const labRedoHistory = [];
 
-function labPushHistory() {
+function labSnapshot() {
   const advice = window.currentLabAdvice;
-  if (!advice) return;
-  labHistory.push({
+  if (!advice) return null;
+  return {
     chord_input: advice.chord_input || "",
     chord_beats: (advice.chords || []).map(chord => chord.beats),
     melody: (advice.melody || []).map(({ pitch, start, duration, voice }) => ({ pitch, start, duration, voice })),
-  });
+  };
+}
+
+function labSyncHistoryButtons() {
+  const undo = document.getElementById("lab-undo");
+  const redo = document.getElementById("lab-redo");
+  if (undo) undo.disabled = labHistory.length === 0;
+  if (redo) redo.disabled = labRedoHistory.length === 0;
+}
+
+function labPushHistory() {
+  const snapshot = labSnapshot();
+  if (!snapshot) return;
+  labHistory.push(snapshot);
   if (labHistory.length > 60) labHistory.shift();
+  labRedoHistory.length = 0;
+  labSyncHistoryButtons();
 }
 
 async function labUndo() {
   const previous = labHistory.pop();
   if (!previous) return toast("Отменять нечего");
+  const current = labSnapshot();
+  if (current) labRedoHistory.push(current);
   try {
     await api(`/sketches/${currentSketchId}`, { method: "PATCH", body: JSON.stringify(previous) });
     await loadLab();
     toast("Отменено");
-  } catch (error) { toast(error.message); }
+  } catch (error) {
+    if (current) labRedoHistory.pop();
+    labHistory.push(previous);
+    labSyncHistoryButtons();
+    toast(error.message);
+  }
+}
+
+async function labRedo() {
+  const next = labRedoHistory.pop();
+  if (!next) return toast("Повторять нечего");
+  const current = labSnapshot();
+  if (current) labHistory.push(current);
+  try {
+    await api(`/sketches/${currentSketchId}`, { method: "PATCH", body: JSON.stringify(next) });
+    await loadLab();
+    toast("Повторено");
+  } catch (error) {
+    if (current) labHistory.pop();
+    labRedoHistory.push(next);
+    labSyncHistoryButtons();
+    toast(error.message);
+  }
 }
 
 async function labCut() {
@@ -4704,14 +4805,13 @@ function queueLabFieldSave() {
 }
 
 async function saveLabFields() {
-  const title = document.getElementById("lab-title");
   const melody = document.getElementById("lab-melody");
   const notes = document.getElementById("lab-notes");
-  if (!title || !melody || !notes) return;
+  if (!melody || !notes) return;
   try {
     await api(`/sketches/${currentSketchId}`, {
       method: "PATCH",
-      body: JSON.stringify({ title: title.value.trim() || "Новый эскиз", melody: melodyTextToNotes(melody.value), notes: notes.value }),
+      body: JSON.stringify({ melody: melodyTextToNotes(melody.value), notes: notes.value }),
     });
     labSaveState("сохранено");
   } catch (error) { labSaveState("не сохранено"); toast(error.message); }
@@ -4766,13 +4866,37 @@ function labPlay(midis, button = null) {
   ptmAudio.playChords(midis, { beatSec: Math.max(.45, Math.min(1.4, 120 / bpm)), onStep: index => { if (index < 0 && button) button.classList.remove("is-playing"); } });
 }
 
+function syncLabDawPlayback(state = {}) {
+  if (!document.getElementById("lab-score") || !window.currentLabAdvice) return;
+  const wasPlaying = !!window.labDawWasPlaying;
+  const isPlaying = !!state.playing;
+  if (isPlaying && (!wasPlaying || !ptmAudio.isPlaying())) {
+    labPlayScore(document.querySelector(".lab-tool-play"), { daw: true, startBeat: Number(state.ppq) || 0 });
+  } else if (!isPlaying && wasPlaying) {
+    labStopScore();
+  }
+  window.labDawWasPlaying = isPlaying;
+}
+
 /** Play harmony and melody together on the score's own timeline. */
-function labPlayScore(button) {
-  if (ptmAudio.isPlaying()) return labStopScore();
+function labPlayScore(button, options = {}) {
+  if (ptmAudio.isPlaying()) {
+    if (options.daw) return;
+    return labStopScore();
+  }
   const advice = window.currentLabAdvice;
   if (!advice?.chords?.length && !advice?.melody?.length) return toast("Сначала введите аккорды или ноты");
   const beatSec = 60 / (Number(document.getElementById("lab-bpm")?.value) || 120);
   const loop = window.labLoop;
+  const scoreEnd = Math.max(
+    1,
+    ...(advice.chords || []).map(chord => chord.start + chord.beats),
+    ...(advice.melody || []).map(note => note.start + note.duration),
+  );
+  const rangeFrom = loop ? loop.from : 0;
+  const rangeLength = loop ? Math.max(.25, loop.to - loop.from) : scoreEnd;
+  const requestedBeat = Number(options.startBeat) || rangeFrom;
+  const normalizedStartBeat = rangeFrom + (((requestedBeat - rangeFrom) % rangeLength) + rangeLength) % rangeLength;
   const within = item => !loop || (item.at >= loop.from && item.at < loop.to);
   const events = [
     ...(advice.chords || []).map(chord => ({ midis: chord.midi, at: chord.start, dur: chord.beats * 0.98, vol: 0.16 })),
@@ -4783,8 +4907,9 @@ function labPlayScore(button) {
   const span = LAB_BARS_PER_SYSTEM * (advice.timeline?.beats_per_bar || 4);
   if (button) button.classList.add("is-playing");
   ptmAudio.playTimeline(events, {
-    loop: !!loop,
-    span: loop ? (loop.to - loop.from) * beatSec : 0,
+    loop: !!loop || !!options.daw,
+    span: rangeLength * beatSec,
+    startAt: (normalizedStartBeat - rangeFrom) * beatSec,
     onTick: elapsed => {
       // Only the system holding the current beat shows a cursor.
       const beat = elapsed / beatSec + (loop ? loop.from : 0);

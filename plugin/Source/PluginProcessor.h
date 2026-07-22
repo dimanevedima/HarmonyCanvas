@@ -2,10 +2,21 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_devices/juce_audio_devices.h>
+#include <atomic>
 
 class HarmonyCanvasProcessor final : public juce::AudioProcessor
 {
 public:
+    struct TransportSnapshot
+    {
+        double bpm = 120.0;
+        double ppq = 0.0;
+        int numerator = 4;
+        int denominator = 4;
+        bool playing = false;
+        bool available = false;
+    };
+
     HarmonyCanvasProcessor();
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
@@ -32,8 +43,15 @@ public:
     void setStateInformation (const void*, int) override;
 
     void enqueuePreviewMessage (const juce::MidiMessage& message);
+    TransportSnapshot getTransportSnapshot() const noexcept;
 
 private:
     juce::MidiMessageCollector previewMessages;
+    std::atomic<double> hostBpm { 120.0 };
+    std::atomic<double> hostPpq { 0.0 };
+    std::atomic<int> hostMeterNumerator { 4 };
+    std::atomic<int> hostMeterDenominator { 4 };
+    std::atomic<bool> hostPlaying { false };
+    std::atomic<bool> hostTransportAvailable { false };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HarmonyCanvasProcessor)
 };

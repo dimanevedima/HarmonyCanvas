@@ -1023,7 +1023,7 @@ dialog #toast { position: absolute; right: 20px; bottom: 20px; }
   .lab-bpm-popover { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(320px, calc(100vw - 24px)); z-index: 100; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lab-sketch-link, .lab-chord, .lab-next { transition: none; }
+  .lab-sketch-link, .lab-chord, .lab-next, .lab-tool-icon { transition: none; }
 }
 
 /* Lab harmony editor v2 */
@@ -1112,12 +1112,28 @@ dialog #toast { position: absolute; right: 20px; bottom: 20px; }
 .lab-text-inputs[open] { display: grid; gap: 10px; }
 
 /* Toolbar: one row of global controls, the way a DAW header reads. */
-.lab-toolbar { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; padding: 12px 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.lab-toolbar { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
 .lab-toolbar .lab-meta-field, .lab-toolbar .lab-tonic-field, .lab-toolbar .lab-bpm-field { margin: 0; }
+.lab-toolbar .lab-tonic-field { width: 88px; }
+.lab-toolbar .lab-mode-field { flex: 1 1 190px; min-width: 170px; max-width: 260px; }
+.lab-toolbar .lab-bpm-field { width: 92px; }
+.lab-toolbar .lab-meter-field { width: 82px; }
+.lab-toolbar select { width: 100%; min-height: 44px; padding-block: 6px; }
 .lab-tool-group { display: flex; align-items: center; gap: 6px; }
 .lab-tool-actions { margin-left: auto; }
-.lab-tool-play, .lab-tool-stop { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); cursor: pointer; font-size: 13px; }
+.lab-tool-icon, .lab-tool-play, .lab-tool-stop { display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; font-size: 13px; transition: background-color .18s, border-color .18s, color .18s; }
 .lab-tool-play { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.lab-tool-icon:hover { border-color: #83bdb5; background: #edf7f5; }
+.lab-tool-play:hover { background: #34352f; color: var(--paper); }
+.lab-tool-icon:focus-visible { outline: 2px solid #23695f; outline-offset: 2px; }
+.lab-tool-icon:disabled { opacity: .38; cursor: default; background: var(--paper); border-color: var(--line); }
+.lab-bpm-trigger.is-daw { border-color: #83bdb5; background: #edf7f5; cursor: help; }
+.lab-bpm-trigger.is-daw span { color: #23695f; font-weight: 700; }
+.lab-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.harmony-canvas-plugin .lab-text-inputs ~ * { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .lab-tool-icon { transition: none; }
+}
 .lab-tool-title { flex: 1 1 180px; min-width: 140px; margin: 0; }
 .lab-tool-title input { width: 100%; font-size: 17px; font-weight: 600; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 4px 2px; background: transparent; }
 .lab-tool-title input:focus { border-bottom-color: var(--purple); outline: none; }

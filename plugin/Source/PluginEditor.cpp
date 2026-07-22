@@ -14,6 +14,11 @@ constexpr auto bridgeScript = R"JS(
   const timers = new Set();
   let playing = false;
 
+  backend()?.addEventListener('dawTransport', state => {
+    window.harmonyCanvasDawTransport = state;
+    window.dispatchEvent(new CustomEvent('harmonycanvas:daw-transport', { detail: state }));
+  });
+
   const stopAll = () => {
     for (const timer of timers) clearTimeout(timer);
     timers.clear();
@@ -58,23 +63,28 @@ constexpr auto bridgeScript = R"JS(
         };
         run();
       },
-      playTimeline(events, { onTick = null, onEnd = null, loop = false, span = 0 } = {}) {
+      playTimeline(events, { onTick = null, onEnd = null, loop = false, span = 0, startAt = 0 } = {}) {
         stopAll();
         playing = true;
         const length = Math.max(span || 0, ...events.map(e => e.at + e.dur), 0.1);
-        const run = () => {
-          events.forEach(event => event.midis.forEach(note => scheduleNote(note, event.at, event.dur, Math.round(127 * (event.vol || 0.5)))));
+        const run = (offset = 0) => {
+          events.forEach(event => {
+            const remaining = event.at < offset ? event.at + event.dur - offset : event.dur;
+            if (remaining <= 0) return;
+            const delay = Math.max(0, event.at - offset);
+            event.midis.forEach(note => scheduleNote(note, delay, remaining, Math.round(127 * (event.vol || 0.5))));
+          });
           const started = performance.now();
-          const tick = setInterval(() => onTick?.((performance.now() - started) / 1000), 30);
+          const tick = setInterval(() => onTick?.(offset + (performance.now() - started) / 1000), 30);
           timers.add(tick);
           const endTimer = setTimeout(() => {
             clearInterval(tick); timers.delete(tick); timers.delete(endTimer);
-            if (loop) run();
+            if (loop) run(0);
             else { playing = false; onEnd?.(); }
-          }, length * 1000);
+          }, Math.max(0.05, length - offset) * 1000);
           timers.add(endTimer);
         };
-        run();
+        run(Math.max(0, Math.min(length - 0.01, startAt || 0)));
       }
     };
     document.body.classList.add('harmony-canvas-plugin');
@@ -220,11 +230,13 @@ HarmonyCanvasEditor::HarmonyCanvasEditor (HarmonyCanvasProcessor& owner)
     {
         startupStatus.setVisible (false);
         browser.goToURL (getLabUrl());
+        labPageRequested = true;
+        startTimer (30);
     }
     else
     {
         launchSidecar();
-        startTimer (100);
+        startTimer (30);
     }
 }
 
@@ -236,19 +248,33 @@ void HarmonyCanvasEditor::resized()
 
 void HarmonyCanvasEditor::timerCallback()
 {
-    if (isSidecarReady())
+    if (! labPageRequested && isSidecarReady())
     {
-        stopTimer();
         browser.goToURL (getLabUrl());
         startupStatus.setVisible (false);
+        labPageRequested = true;
+        startTimer (100);
+    }
+
+    if (! labPageRequested)
+    {
+        ++startupAttempts;
+        if (startupAttempts == 150)
+        {
+            startupStatus.setText ("Harmony Canvas is taking longer than expected to start.",
+                                   juce::dontSendNotification);
+            startTimer (1000);
+        }
         return;
     }
 
-    ++startupAttempts;
-    if (startupAttempts == 150)
-    {
-        startupStatus.setText ("Harmony Canvas is taking longer than expected to start.",
-                               juce::dontSendNotification);
-        startTimer (1000);
-    }
+    const auto transport = processor.getTransportSnapshot();
+    auto* object = new juce::DynamicObject();
+    object->setProperty ("available", transport.available);
+    object->setProperty ("bpm", transport.bpm);
+    object->setProperty ("ppq", transport.ppq);
+    object->setProperty ("playing", transport.playing);
+    object->setProperty ("numerator", transport.numerator);
+    object->setProperty ("denominator", transport.denominator);
+    browser.emitEventIfBrowserIsVisible ("dawTransport", juce::var (object));
 }
