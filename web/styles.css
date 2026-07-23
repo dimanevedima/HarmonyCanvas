@@ -1448,11 +1448,14 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 
 /* ── Timeline grid: a beat line everywhere, a stronger line on each bar ──── */
 
-.lab-score { --grid-beat: color-mix(in srgb, var(--ink) 8%, transparent); --grid-bar: color-mix(in srgb, var(--ink) 26%, transparent); }
+.lab-score { --grid-beat: color-mix(in srgb, var(--ink) 8%, transparent); --grid-bar: color-mix(in srgb, var(--ink) 26%, transparent); --grid-sub: color-mix(in srgb, var(--ink) 4%, transparent); }
+/* Three layers: bar line (strong), beat line, and a faint subdivision at the
+   current snap resolution so choosing 1/16 visibly finer-grids the lane. */
 .lab-score .lab-row-track {
   background-image:
     repeating-linear-gradient(to right, var(--grid-bar) 0 1px, transparent 1px calc(var(--beat) * var(--bar, 4))),
-    repeating-linear-gradient(to right, var(--grid-beat) 0 1px, transparent 1px var(--beat));
+    repeating-linear-gradient(to right, var(--grid-beat) 0 1px, transparent 1px var(--beat)),
+    repeating-linear-gradient(to right, var(--grid-sub) 0 1px, transparent 1px calc(var(--beat) * var(--snap, 0.5)));
   background-position: 0 0;
 }
 /* The chord lane reads as a strip, so its grid sits above the blocks' backdrop. */

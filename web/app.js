@@ -4255,7 +4255,7 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
     ? `<i class="lab-loop" style="--from:${from - offset};--len:${to - from}" title="Луп ${loop.from}–${loop.to} доли"><b onpointerdown="event.stopPropagation();clearLabLoop()" title="Убрать луп">×</b></i>`
     : "";
 
-  return `<div class="lab-score lab-system" data-offset="${offset}" style="--beats:${span};--bar:${beatsPerBar};--beat:${labBeatWidth()}px">
+  return `<div class="lab-score lab-system" data-offset="${offset}" style="--beats:${span};--bar:${beatsPerBar};--beat:${labBeatWidth()}px;--snap:${window.labSnapBeats || 0.5}">
       <div class="lab-score-inner">
         <i class="lab-playhead" data-playhead="${systemIndex}" style="--pos:0" hidden></i>
         <i class="lab-marquee" data-marquee="${systemIndex}" hidden></i>
@@ -4357,7 +4357,7 @@ async function setLabChromatic(on) {
 
 // ── Note editing on the grid ────────────────────────────────────────────────
 
-const LAB_NOTE_LENGTHS = [[0.5, "1/8"], [1, "1/4"], [2, "1/2"], [4, "целая"]];
+const LAB_NOTE_LENGTHS = [[0.25, "1/16"], [0.5, "1/8"], [1, "1/4"], [2, "1/2"], [4, "целая"]];
 const LAB_SNAPS = [[0.25, "1/16"], [0.5, "1/8"], [1, "1/4"]];
 
 function labBeatPx() {
@@ -4627,7 +4627,11 @@ async function labDeleteSelectedNotes() {
 }
 
 function setLabNoteLength(value) { window.labNoteLength = Number(value); }
-function setLabSnap(value) { window.labSnapBeats = Number(value); }
+function setLabSnap(value) {
+  window.labSnapBeats = Number(value) || 0.5;
+  // Re-render so the grid draws subdivision lines at the new snap resolution.
+  labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
+}
 
 // ── Voices and MIDI output routing ──────────────────────────────────────────
 // Chords play on MIDI channel 1; melody voice N plays on channel N+1, so the
@@ -4934,7 +4938,7 @@ function labChordPaletteHtml(advice) {
 function labChordCellHtml(item, degreeIndex, context = {}) {
   return `<span class="lab-cell ${item.borrowed ? "is-borrowed" : ""}" style="--deg:var(--deg-${(degreeIndex ?? 0) + 1})">
     <button type="button" class="lab-cell-play" onclick="labPlay([[${item.midi.join(",")}]],this)" aria-label="Проиграть ${esc(item.symbol)}" title="Проиграть">▶</button>
-    <button type="button" class="lab-cell-main" onpointerdown="labChordDragStart(event, '${esc(item.symbol)}')" title="${esc(item.symbol)} — клик добавит, перетащите на гармонию">
+    <button type="button" class="lab-cell-main" onpointerdown="labChordDragStart(event, '${esc(item.symbol)}', [${item.midi.join(",")}])" title="${esc(item.symbol)} — клик проиграет и добавит, перетащите на гармонию">
       <b>${esc(item.degree)}</b><strong>${esc(item.symbol)}</strong>${item.borrowed ? `<i>${esc((context.label || "").slice(0, 3))}</i>` : ""}
     </button></span>`;
 }
@@ -5122,8 +5126,9 @@ async function labInsertChordAt(symbol, beat) {
   } catch (error) { toast(error.message); }
 }
 
-/** Drag a palette chord onto the harmony lane; a plain click still inserts it. */
-function labChordDragStart(event, symbol) {
+/** Drag a palette chord onto the harmony lane; a plain click previews it and
+ *  inserts it, so a single tap both adds the chord and lets you hear it. */
+function labChordDragStart(event, symbol, midi = null) {
   if (event.button) return;
   event.preventDefault();
   const startX = event.clientX, startY = event.clientY;
@@ -5148,7 +5153,10 @@ function labChordDragStart(event, symbol) {
     window.removeEventListener("pointerup", onUp);
     document.querySelectorAll(".lab-lane-row .lab-row-track").forEach(t => t.classList.remove("is-drop"));
     if (ghost) ghost.remove();
-    if (!dragging) return putLabChord(symbol);
+    if (!dragging) {
+      if (midi && midi.length) labPlay([midi]);
+      return putLabChord(symbol);
+    }
     const track = laneTrack(pointer);
     if (track) labInsertChordAt(symbol, labSnap(labTrackBeats(track, pointer.clientX)));
   };
@@ -5333,10 +5341,10 @@ async function selectLabChord(index) {
 }
 
 function labPlay(midis, button = null) {
-  // Inside the plug-in the app makes no sound of its own — all audio comes from
-  // the DAW playing the timeline, so click-auditions are suppressed.
-  if (typeof window.harmonyCanvasSetPlaybackTimeline === "function") return;
-  if (window.labDawTransport?.playing) return toast("Playback следует за Ableton Live");
+  // Click-auditions preview through the built-in Web Audio synth (works in the
+  // browser and inside the WebView2 plug-in). Only suppressed while the DAW is
+  // actually rolling, so a preview never fights the host's own playback.
+  if (window.labDawTransport?.playing) return;
   ptmAudio.stopAll();
   if (button) button.classList.add("is-playing");
   const bpm = Number(document.getElementById("lab-bpm")?.value) || 120;
