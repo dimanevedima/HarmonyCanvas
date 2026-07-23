@@ -3997,7 +3997,6 @@ async function loadLab() {
     window.labSelectedChordIndex = advice.selected_index < 0 ? null : advice.selected_index;
     window.labSketchVersion = sketch.updated_at;
     renderLab(container, sketches, sketch, advice);
-    startLabSyncPoll();
   } catch (error) { if (firstPaint) container.innerHTML = `<div class="empty">${esc(error.message)}</div>`; }
 }
 
@@ -4017,15 +4016,40 @@ function loadLabOutputState() {
     const saved = JSON.parse(raw);
     window.labChordsMuted = !!saved.chordsMuted;
     window.labVoiceMuteState = Object.assign({ 1: false, 2: false, 3: false, 4: false }, saved.voiceMutes || {});
+    window.labOutputToDaw = !!saved.outputToDaw;
+    window.labPartVolState = Object.assign({ chords: 1, v1: 1, v2: 1, v3: 1, v4: 1 }, saved.partVol || {});
   } catch {}
 }
 
 function saveLabOutputState() {
   try {
     localStorage.setItem(labOutputStorageKey(), JSON.stringify({
-      chordsMuted: !!window.labChordsMuted, voiceMutes: labVoiceMutes(),
+      chordsMuted: !!window.labChordsMuted, voiceMutes: labVoiceMutes(), outputToDaw: !!window.labOutputToDaw,
+      partVol: labPartVolume(),
     }));
   } catch {}
+}
+
+/** Per-part output volume (chords + voices 1-4), scaling MIDI velocity. */
+function labPartVolume() {
+  if (!window.labPartVolState) window.labPartVolState = { chords: 1, v1: 1, v2: 1, v3: 1, v4: 1 };
+  return window.labPartVolState;
+}
+
+function setLabPartVolume(part, value) {
+  labPartVolume()[part] = Math.max(0, Math.min(1.5, Number(value) || 0));
+  saveLabOutputState();
+  syncNativePlaybackTimeline();
+}
+
+/** Toggle between in-app piano preview and playing through Ableton instruments.
+ * In Ableton mode Play/Stop drive the host transport and the app is silent. */
+function setLabOutputMode(toDaw) {
+  window.labOutputToDaw = !!toDaw;
+  if (window.labOutputToDaw) ptmAudio.stopAll();
+  else if (window.labAppPlaying) labSetAppTransport(false);
+  saveLabOutputState();
+  labRenderVoicesBar();
 }
 
 /** Poll the shared sketch; reload when another instance changed it. */
@@ -4047,17 +4071,21 @@ function startLabSyncPoll() {
   }, 1500);
 }
 
-async function bindLabSketch(sketchId) {
-  if (!labInstanceId) return toast("Связывание доступно только внутри плагина");
+/** One-shot copy of another instance's content into the current sketch. */
+async function copyFromLabSketch(sourceId) {
+  if (!sourceId) return;
   try {
-    const target = sketchId && sketchId !== "__own__" ? sketchId : null;
-    const sketch = await api(`/instances/${encodeURIComponent(labInstanceId)}/bind`, {
-      method: "POST", body: JSON.stringify({ sketch_id: target }),
+    const src = await api(`/sketches/${sourceId}`);
+    labPushHistory();
+    await api(`/sketches/${currentSketchId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        chord_input: src.chord_input || "", chord_beats: src.chord_beats || [], chord_starts: src.chord_starts || [],
+        melody: src.melody || [], tonic: src.tonic, mode: src.mode, meter: src.meter, bpm: src.bpm,
+      }),
     });
-    currentSketchId = sketch.id;
-    window.labSketchVersion = null;
     await loadLab();
-    toast(target ? "Инстанс делит общий эскиз" : "Инстанс отвязан — свой эскиз");
+    toast("Скопировано из другого инстанса");
   } catch (error) { toast(error.message); }
 }
 
@@ -4436,7 +4464,9 @@ function labMarqueeStart(event, track) {
     marquee.hidden = true;
     if (!dragged) return false;
     const area = { left: Math.min(origin.x, pointer.clientX), right: Math.max(origin.x, pointer.clientX), top: Math.min(origin.y, pointer.clientY), bottom: Math.max(origin.y, pointer.clientY) };
-    const hits = [...document.querySelectorAll(".lab-note")].filter(note => {
+    // Only the active voice is selectable — greyed voices are locked, so the
+    // marquee ignores them.
+    const hits = [...document.querySelectorAll(".lab-note:not(.is-inactive)")].filter(note => {
       const rect = note.getBoundingClientRect();
       return rect.right >= area.left && rect.left <= area.right && rect.bottom >= area.top && rect.top <= area.bottom;
     }).map(note => Number(note.dataset.note));
@@ -4505,23 +4535,30 @@ function labVoicesBarHtml(advice) {
   }).join("");
   return `<div class="lab-voices-edit"><span class="lab-voices-label">Голос</span>${picks}</div>
     ${labSharePickerHtml()}
-    <div class="lab-voices-out"><span class="lab-voices-label" title="Отдельный инстанс на каждый инструмент: выключите здесь всё, кроме своей партии, и заведите MIDI From → этот инстанс в Ableton">Выводит этот инстанс</span>${chordChip}${voiceChips}</div>`;
+    <div class="lab-voices-out"><span class="lab-voices-label" title="Отдельный инстанс на каждый инструмент: выключите здесь всё, кроме своей партии, и заведите MIDI From → этот инстанс в Ableton">Выводит этот инстанс</span>${chordChip}${voiceChips}</div>
+    ${labMixerHtml()}`;
 }
 
-/** Picker to share one sketch across instances (multi-instance routing). */
+/** Per-part volume mixer (chords + voices), scaling MIDI velocity. */
+function labMixerHtml() {
+  const vol = labPartVolume();
+  const slider = (part, label) => `<label class="lab-mix" title="Громкость: ${label} (${Math.round((vol[part] ?? 1) * 100)}%)"><small>${label}</small><input type="range" min="0" max="1.5" step="0.05" value="${vol[part] ?? 1}" oninput="setLabPartVolume('${part}', this.value)"></label>`;
+  return `<div class="lab-voices-mix"><span class="lab-voices-label">Громкость</span>${slider("chords", "Акк")}${slider("v1", "Г1")}${slider("v2", "Г2")}${slider("v3", "Г3")}${slider("v4", "Г4")}</div>`;
+}
+
+/** Picker to copy another instance's content into this one — a one-shot copy,
+ * not a live link, so instances stay independent. */
 function labSharePickerHtml() {
   if (!labInstanceId) return "";
-  const all = window.labAllSketches || [];
-  const current = all.find(s => s.id === currentSketchId);
-  const linked = !!(current && current.instance_id && current.instance_id !== labInstanceId);
-  const options = all.map(s => {
-    const mine = s.instance_id === labInstanceId;
-    const label = `${s.title || "эскиз"} · ${s.tonic || ""}${mine ? " (свой)" : ""}`;
-    return `<option value="${esc(s.id)}" ${s.id === currentSketchId ? "selected" : ""}>${esc(label)}</option>`;
+  const others = (window.labAllSketches || []).filter(s => s.instance_id && s.instance_id !== labInstanceId);
+  if (!others.length) return "";
+  const options = others.map(s => {
+    const label = `${s.title || "эскиз"} · ${s.tonic || ""} ${(s.chord_input || "").slice(0, 16)}`.trim();
+    return `<option value="${esc(s.id)}">${esc(label)}</option>`;
   }).join("");
-  return `<label class="lab-share ${linked ? "is-linked" : ""}" title="Один общий эскиз для нескольких инстансов: правки синхронны, а выводимую партию каждый инстанс выбирает сам. Заведите по инстансу на инструмент.">
-    <span class="lab-voices-label">${linked ? "🔗 Общий эскиз" : "Эскиз"}</span>
-    <select onchange="bindLabSketch(this.value)">${options}<option value="__own__">— отвязать (свой эскиз) —</option></select>
+  return `<label class="lab-share" title="Скопировать аккорды и ноты из другого инстанса в этот (разово, без связывания — инстансы остаются независимыми)">
+    <span class="lab-voices-label">Копировать из</span>
+    <select onchange="copyFromLabSketch(this.value); this.selectedIndex = 0;"><option value="">— инстанс —</option>${options}</select>
   </label>`;
 }
 
@@ -5023,6 +5060,9 @@ async function selectLabChord(index) {
 }
 
 function labPlay(midis, button = null) {
+  // Inside the plug-in the app makes no sound of its own — all audio comes from
+  // the DAW playing the timeline, so click-auditions are suppressed.
+  if (typeof window.harmonyCanvasSetPlaybackTimeline === "function") return;
   if (window.labDawTransport?.playing) return toast("Playback следует за Ableton Live");
   ptmAudio.stopAll();
   if (button) button.classList.add("is-playing");
@@ -5049,20 +5089,22 @@ function syncNativePlaybackTimeline(advice = window.currentLabAdvice) {
     const to = Math.min(Number(start) + Number(duration), rangeTo);
     return to > from ? { start: wrap(from), duration: to - from } : null;
   };
-  // Chords → MIDI channel 1, voice N → channel N+1. Muted parts are simply
-  // left out of the timeline the audio processor renders.
+  // Chords → MIDI channel 1, voice N → channel N+1. Muted parts are left out;
+  // per-part volume scales the note velocity the processor renders.
   const mutes = labVoiceMutes();
+  const vol = labPartVolume();
+  const vel = (base, gain) => Math.max(1, Math.min(127, Math.round(base * (gain == null ? 1 : gain))));
   const events = [];
   if (!window.labChordsMuted) for (const chord of advice.chords || []) {
     const timing = clip(chord.start, Number(chord.beats) * .98);
     if (!timing) continue;
-    for (const note of chord.midi || []) events.push({ note, ...timing, velocity: 42, channel: 1 });
+    for (const note of chord.midi || []) events.push({ note, ...timing, velocity: vel(64, vol.chords), channel: 1 });
   }
   for (const note of advice.melody || []) {
     const voice = note.voice || 1;
     if (mutes[voice]) continue;
     const timing = clip(note.start, Number(note.duration) * .95);
-    if (timing) events.push({ note: note.pitch, ...timing, velocity: 96, channel: Math.min(16, voice + 1) });
+    if (timing) events.push({ note: note.pitch, ...timing, velocity: vel(100, vol["v" + voice]), channel: Math.min(16, voice + 1) });
   }
   window.harmonyCanvasSetPlaybackTimeline({ length, events });
 }
@@ -5092,6 +5134,16 @@ function syncLabDawPlayback(state = {}) {
 
 /** Play harmony and melody together on the score's own timeline. */
 function labPlayScore(button, options = {}) {
+  // Inside the plug-in the app never previews audio itself — playback is the
+  // DAW rendering the timeline. Only a genuine DAW-driven call (options.daw)
+  // moves the on-screen playhead.
+  if (typeof window.harmonyCanvasSetPlaybackTimeline === "function" && !options.daw) return;
+  // "Звук из Ableton" mode: Play/Stop drive Ableton's transport via the M4L
+  // player; the app makes no sound of its own.
+  if (window.labOutputToDaw && !options.daw) {
+    labSetAppTransport(!window.labAppPlaying);
+    return;
+  }
   if (window.labDawTransport?.playing && !options.daw) return toast("Playback следует за Ableton Live");
   if (ptmAudio.isPlaying()) {
     if (options.daw) return;
@@ -5140,10 +5192,24 @@ function labPlayScore(button, options = {}) {
 }
 
 function labStopScore(button = null) {
+  if (window.labOutputToDaw) labSetAppTransport(false);
   ptmAudio.stopAll();
   document.querySelectorAll(".lab-playhead").forEach(head => { head.hidden = true; head.style.setProperty("--pos", 0); });
   document.querySelectorAll(".lab-tool-play.is-playing").forEach(item => item.classList.remove("is-playing"));
   if (button) button.classList.remove("is-playing");
+}
+
+/** Post the editor's Play/Stop to the sidecar; an M4L player drives Ableton. */
+async function labPostTransport(playing) {
+  try { await api("/transport", { method: "POST", body: JSON.stringify({ playing: !!playing }) }); }
+  catch (error) { toast(error.message); }
+}
+
+function labSetAppTransport(playing) {
+  window.labAppPlaying = !!playing;
+  document.querySelectorAll(".lab-tool-play").forEach(b => b.classList.toggle("is-playing", !!playing));
+  if (!playing) document.querySelectorAll(".lab-playhead").forEach(head => { head.hidden = true; });
+  labPostTransport(!!playing);
 }
 
 // ── Full-screen editor window ───────────────────────────────────────────────

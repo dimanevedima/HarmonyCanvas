@@ -318,6 +318,10 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
         if parts == ["api", "health"]:
             self.send_json({"ok": True, "service": "harmony-canvas-sidecar"})
             return
+        if parts == ["api", "transport"]:
+            with self.server.transport_lock:  # type: ignore[attr-defined]
+                self.send_json(dict(self.server.transport))  # type: ignore[attr-defined]
+            return
         if parts == ["api", "sketches"]:
             include_all = query.get("all", [None])[0] in ("1", "true", "yes")
             self.send_json(self.store.list(query.get("instance", [None])[0], include_all=include_all))
@@ -354,6 +358,19 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
         if parts == ["api", "shutdown"]:
             self.send_json({"ok": True, "shutting_down": True})
             threading.Thread(target=self.server.shutdown, daemon=True).start()
+            return
+        if parts == ["api", "transport"]:
+            with self.server.transport_lock:  # type: ignore[attr-defined]
+                state = self.server.transport  # type: ignore[attr-defined]
+                if "playing" in payload:
+                    state["playing"] = bool(payload.get("playing"))
+                if "position" in payload:
+                    try:
+                        state["position"] = float(payload.get("position") or 0.0)
+                    except (TypeError, ValueError):
+                        pass
+                state["seq"] += 1
+                self.send_json(dict(state))
             return
         if parts == ["api", "sketches"]:
             self.send_json(self.store.create(payload), HTTPStatus.CREATED)
@@ -449,6 +466,11 @@ class HarmonyCanvasServer(ThreadingHTTPServer):
     def __init__(self, address, store: SketchStore):
         super().__init__(address, HarmonyCanvasHandler)
         self.store = store
+        # Transport command from the editor. A Max for Live device polls this and
+        # starts/stops Ableton's transport, so the app drives playback. `seq`
+        # bumps on every change so pollers act only on real transitions.
+        self.transport = {"playing": False, "position": 0.0, "seq": 0}
+        self.transport_lock = threading.Lock()
 
 
 def stop_with_parent(server: ThreadingHTTPServer, parent_pid: int) -> None:

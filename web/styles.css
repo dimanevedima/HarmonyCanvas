@@ -1337,6 +1337,12 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 .lab-share.is-linked { border-color: #23695f; box-shadow: inset 0 0 0 1px #23695f; }
 .lab-share.is-linked .lab-voices-label { color: #23695f; }
 
+/* Per-part volume mixer. */
+.lab-voices-mix { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lab-mix { display: inline-flex; align-items: center; gap: 4px; }
+.lab-mix small { font-size: 9px; color: var(--muted); min-width: 18px; }
+.lab-mix input[type="range"] { width: 64px; accent-color: #23695f; }
+
 /* Chord blocks carry no buttons: drag the body, drag the edge, click to hear. */
 .lab-lane-chord:active { cursor: grabbing; }
 
