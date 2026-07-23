@@ -226,6 +226,78 @@ class SketchStore:
             return True
 
 
+def _smf_varlen(value: int) -> bytes:
+    out = bytearray([value & 0x7F])
+    value >>= 7
+    while value:
+        out.insert(0, (value & 0x7F) | 0x80)
+        value >>= 7
+    return bytes(out)
+
+
+def _write_smf(path: Path, notes: list[tuple[float, float, int]], bpm: float, velocity: int) -> None:
+    """Write a one-track type-0 MIDI file. notes = (start_beat, dur_beat, pitch)."""
+    import struct
+
+    ppq = 480
+    events: list[tuple[int, int, int, int, int]] = []
+    for start, dur, pitch in notes:
+        on = int(round(start * ppq))
+        off = max(on + 1, int(round((start + dur) * ppq)))
+        events.append((on, 1, 0x90, pitch, velocity))
+        events.append((off, 0, 0x80, pitch, 0))
+    events.sort(key=lambda e: (e[0], e[1]))
+
+    track = bytearray()
+    mpq = int(round(60000000 / max(1.0, bpm)))
+    track += _smf_varlen(0) + bytes([0xFF, 0x51, 0x03]) + struct.pack(">I", mpq)[1:]
+    last = 0
+    for tick, _order, status, d1, d2 in events:
+        track += _smf_varlen(tick - last) + bytes([status, d1, d2])
+        last = tick
+    track += _smf_varlen(0) + bytes([0xFF, 0x2F, 0x00])
+    data = b"MThd" + struct.pack(">IHHH", 6, 0, 1, ppq) + b"MTrk" + struct.pack(">I", len(track)) + bytes(track)
+    path.write_bytes(data)
+
+
+def export_sketch_midi(sketch: dict) -> dict:
+    """Write one .mid per part (chords + each voice) into a folder and open it."""
+    advice = build_advice(sketch, {})
+    bpm = float(sketch.get("bpm") or 120)
+    base = Path.home() / "OneDrive" / "Desktop"
+    if not base.is_dir():
+        base = Path.home() / "Desktop"
+    if not base.is_dir():
+        base = Path.home()
+    title = "".join(c for c in str(sketch.get("title") or "sketch") if c.isalnum() or c in " -_").strip() or "sketch"
+    folder = base / "HarmonyCanvas-MIDI" / title
+    folder.mkdir(parents=True, exist_ok=True)
+
+    made: list[str] = []
+    chord_notes = [
+        (float(chord["start"]), float(chord["beats"]) * 0.98, int(pitch))
+        for chord in advice.get("chords", []) for pitch in chord.get("midi", [])
+    ]
+    if chord_notes:
+        _write_smf(folder / "Chords.mid", chord_notes, bpm, 80)
+        made.append("Chords.mid")
+    by_voice: dict[int, list[tuple[float, float, int]]] = {}
+    for note in advice.get("melody", []):
+        voice = int(note.get("voice") or 1)
+        by_voice.setdefault(voice, []).append((float(note["start"]), float(note["duration"]) * 0.98, int(note["pitch"])))
+    for voice in sorted(by_voice):
+        name = f"Voice {voice}.mid"
+        _write_smf(folder / name, by_voice[voice], bpm, 100)
+        made.append(name)
+
+    try:
+        if os.name == "nt":
+            os.startfile(str(folder))  # type: ignore[attr-defined]
+    except OSError:
+        pass
+    return {"folder": str(folder), "files": made}
+
+
 def build_advice(sketch: dict, query: dict[str, list[str]]) -> dict:
     selected_raw = query.get("selected_index", [None])[0]
     selected = int(selected_raw) if selected_raw not in (None, "") else None
@@ -440,6 +512,12 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
                 result = build_advice(updated, query)
                 result["selected_note"] = selected_note
                 self.send_json(result)
+                return
+            if parts[3] == "export-midi":
+                try:
+                    self.send_json(export_sketch_midi(sketch))
+                except OSError as error:
+                    self.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, str(error))
                 return
         self.send_error_json(HTTPStatus.NOT_FOUND, "Not found")
 

@@ -612,6 +612,46 @@ def apply_chord_edit(chord_input: str, *, index: int, op: str, value: str = "", 
     def result(selected: int) -> tuple[str, int, list[float], list[float]]:
         return " ".join(tokens), max(0, min(selected, max(0, len(tokens) - 1))), beats, starts
 
+    def resolve_overlaps(keep: int) -> int:
+        """After a move or resize, the edited chord owns its span; any chord it
+        overlaps is trimmed to butt against it, and one fully covered is removed.
+        Mirrors a DAW clip drop: the moved block takes the room, the block under
+        it gets shorter. Returns the (possibly shifted) index of the kept chord.
+        """
+        ks = starts[keep]
+        ke = starts[keep] + beats[keep]
+        remove: set[int] = set()
+        for other in range(len(tokens)):
+            if other == keep:
+                continue
+            os_ = starts[other]
+            oe = os_ + beats[other]
+            if oe <= ks + 1e-6 or os_ >= ke - 1e-6:
+                continue  # no overlap
+            if os_ >= ks - 1e-6 and oe <= ke + 1e-6:
+                remove.add(other)  # fully covered
+            elif os_ < ks:
+                beats[other] = round(ks - os_, 4)  # trim its right side
+            else:
+                starts[other] = round(ke, 4)  # push+trim its left side
+                beats[other] = round(oe - ke, 4)
+            if beats[other] <= 0.01:
+                remove.add(other)
+        for other in sorted(remove, reverse=True):
+            tokens.pop(other)
+            beats.pop(other)
+            starts.pop(other)
+            if other < keep:
+                keep -= 1
+        return keep
+
+    def order_by_start(keep: int) -> int:
+        order = sorted(range(len(tokens)), key=lambda item: (starts[item], item))
+        tokens[:] = [tokens[item] for item in order]
+        beats[:] = [beats[item] for item in order]
+        starts[:] = [starts[item] for item in order]
+        return order.index(keep)
+
     def reflow(from_index: int = 0) -> None:
         """Lay the lane out end to end from a point on.
 
@@ -632,17 +672,13 @@ def apply_chord_edit(chord_input: str, *, index: int, op: str, value: str = "", 
         reflow(at)
         return result(at)
     if op == "insert_at":
-        # Drag-drop from the palette: place a new chord at a dropped beat, then
-        # re-read the lane in time order so it still reads left to right.
+        # Drag-drop from the palette: place a new chord at a dropped beat, trim
+        # whatever it lands on, then re-read the lane in time order.
         tokens.append(value)
         beats.append(DEFAULT_CHORD_BEATS)
         starts.append(max(0.0, float(start or 0.0)))
-        new = len(tokens) - 1
-        order = sorted(range(len(tokens)), key=lambda item: (starts[item], item))
-        tokens[:] = [tokens[item] for item in order]
-        beats[:] = [beats[item] for item in order]
-        starts[:] = [starts[item] for item in order]
-        return result(order.index(new))
+        new = resolve_overlaps(len(tokens) - 1)
+        return result(order_by_start(new))
     if not tokens or not 0 <= index < len(tokens):
         return result(index)
     if op == "delete":
@@ -658,17 +694,24 @@ def apply_chord_edit(chord_input: str, *, index: int, op: str, value: str = "", 
         reflow(min(index, target))
         return result(target)
     if op == "position":
-        # Free placement: the chord keeps the beat it was dropped on, and the
-        # lane is re-read in time order so the progression still reads left to right.
+        # Free placement: the chord keeps the beat it was dropped on, trims any
+        # chord it overlaps, and the lane is re-read in time order.
         starts[index] = max(0.0, float(value))
-        order = sorted(range(len(tokens)), key=lambda item: (starts[item], item))
-        tokens = [tokens[item] for item in order]
-        beats = [beats[item] for item in order]
-        starts = [starts[item] for item in order]
-        return result(order.index(index))
+        index = resolve_overlaps(index)
+        return result(order_by_start(index))
     if op == "duration":
         beats[index] = max(0.25, float(value))
+        index = resolve_overlaps(index)
         return result(index)
+    if op == "resize_left":
+        # Drag the left edge: the right edge stays put, the start moves, and the
+        # chord trims whatever now sits under its new left half.
+        old_end = starts[index] + beats[index]
+        new_start = max(0.0, min(float(value), old_end - 0.25))
+        starts[index] = round(new_start, 4)
+        beats[index] = round(old_end - new_start, 4)
+        index = resolve_overlaps(index)
+        return result(order_by_start(index))
     if op == "symbol":
         clean = value.strip().replace(" ", "")
         if not clean:

@@ -63,8 +63,16 @@ function fetchSketch(host, port, selected, cb) {
   });
 }
 
+/* Fetch the editor's transport command (play/stop) the app posted. */
+function fetchTransport(host, port, cb) {
+  getJson(host, port, "/api/transport", function (err, t) {
+    if (err) { cb(err); return; }
+    cb(null, { playing: !!t.playing, position: Number(t.position) || 0, seq: t.seq | 0 });
+  });
+}
+
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { getJson: getJson, compactAdvice: compactAdvice, fetchSketch: fetchSketch };
+  module.exports = { getJson: getJson, compactAdvice: compactAdvice, fetchSketch: fetchSketch, fetchTransport: fetchTransport };
 }
 
 // ── Max [node.script] glue ──────────────────────────────────────────────────
@@ -75,16 +83,24 @@ if (typeof module !== "undefined" && module.exports) {
   var Max;
   try { Max = require("max-api"); } catch (e) { return; }
 
-  var host = DEFAULT_HOST, port = DEFAULT_PORT, selected = null, lastKey = "";
+  var host = DEFAULT_HOST, port = DEFAULT_PORT, selected = null, lastKey = "", lastTransportSeq = -1;
 
   function poll() {
     fetchSketch(host, port, selected, function (err, res) {
       if (err) { Max.outlet("status", "offline: " + err.message); return; }
       var key = res.id + "@" + res.updated_at;
-      if (key === lastKey) return;         // unchanged since last poll
-      lastKey = key;
-      Max.outlet("sketch", JSON.stringify(res.payload));
-      Max.outlet("status", "ok: " + res.id.slice(0, 8));
+      if (key !== lastKey) {               // unchanged since last poll
+        lastKey = key;
+        Max.outlet("sketch", JSON.stringify(res.payload));
+        Max.outlet("status", "ok: " + res.id.slice(0, 8));
+      }
+    });
+    // Transport command from the editor: emit only on a real change.
+    fetchTransport(host, port, function (err, t) {
+      if (err) return;
+      if (t.seq === lastTransportSeq) return;
+      lastTransportSeq = t.seq;
+      Max.outlet("transport", t.playing ? 1 : 0);
     });
   }
 

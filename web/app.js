@@ -4039,10 +4039,26 @@ function labPartVolume() {
 }
 
 function setLabPartVolume(part, value) {
-  labPartVolume()[part] = Math.max(0, Math.min(1.5, Number(value) || 0));
+  let v = Math.max(0, Math.min(1.5, Number(value) || 0));
+  // Detent near the two values users actually reach for, so the slider always
+  // lands exactly on 0% (silent) and 100% (unity) instead of a fuzzy 0.05.
+  if (v < 0.04) v = 0;
+  else if (Math.abs(v - 1) < 0.04) v = 1;
+  labPartVolume()[part] = v;
   saveLabOutputState();
   syncNativePlaybackTimeline();
+  // Reflect the snapped value back into the live control + its readout.
+  const wrap = document.querySelector(`.lab-mix[data-part="${part}"]`);
+  if (wrap) {
+    const input = wrap.querySelector("input[type=range]");
+    if (input && Number(input.value) !== v) input.value = v;
+    const out = wrap.querySelector(".lab-mix-val");
+    if (out) out.textContent = `${Math.round(v * 100)}%`;
+  }
 }
+
+/** Reset a single fader to unity (100%). */
+function resetLabPartVolume(part) { setLabPartVolume(part, 1); }
 
 /** Toggle between in-app piano preview and playing through Ableton instruments.
  * In Ableton mode Play/Stop drive the host transport and the app is silent. */
@@ -4101,13 +4117,17 @@ function renderLab(container, sketches, sketch, advice) {
     <aside class="lab-sketch-list"><div class="section-head"><h2>Эскизы</h2><button class="icon-mini" onclick="createLabSketch()" aria-label="Новый эскиз">+</button></div>${sketches.map(item => `<button class="lab-sketch-link ${item.id === sketch.id ? "active" : ""}" onclick="currentSketchId='${item.id}';loadLab()"><strong>${esc(item.title)}</strong><small>${esc(item.tonic)} · ${esc(item.mode)} · ${item.bpm} BPM</small></button>`).join("")}</aside>
     <div class="lab-workspace">
       <header class="lab-toolbar">${labCompactToolbarHtml(sketch)}</header>
-      <div id="lab-voices-bar" class="lab-voices-bar">${labVoicesBarHtml(advice)}</div>
-      <section class="lab-insert">${labInsertHtml(advice)}</section>
+      <div id="lab-context-bar" class="lab-context-bar">${labContextBarHtml(advice)}</div>
       <div class="lab-stage">
         <div id="lab-score" class="lab-score-panel">${labScoreHtml(advice)}</div>
         <aside id="lab-chord-inspector" class="lab-chord-inspector">${labInspectorHtml(advice)}</aside>
       </div>
       <div id="lab-scale-strip" class="lab-scale-strip">${labScaleHtml(advice)}</div>
+      <div id="lab-drawer-scrim" class="lab-drawer-scrim" hidden onclick="closeLabDrawers()"></div>
+      <aside id="lab-voices-drawer" class="lab-drawer" hidden aria-hidden="true" aria-label="Голоса и микшер">
+        <div class="lab-drawer-head"><strong>Голоса, выход и микшер</strong><button type="button" class="lab-drawer-close" onclick="closeLabDrawers()" aria-label="Закрыть">×</button></div>
+        <div id="lab-voices-bar" class="lab-voices-bar">${labVoicesBarHtml(advice)}</div>
+      </aside>
       <div id="lab-analysis">${labAnalysisHtml(advice)}</div>
       <details class="panel lab-text-inputs"><summary>Ввод текстом и заметки</summary>
         <label class="lab-main-field">Аккорды <small>через пробел или тире</small><textarea id="lab-chords" rows="2" placeholder="Bbmaj13/D Am/E C Dm" onchange="persistLabChordText()">${esc(sketch.chord_input)}</textarea></label>
@@ -4155,17 +4175,36 @@ function labScaleHtml(advice) {
 
 const LAB_DURATIONS = [[1, "1/4"], [2, "1/2"], [4, "1"], [8, "2"]];
 
-const LAB_BARS_PER_SYSTEM = 8;
+// The roll is one continuous horizontal lane (webaudio-pianoroll style) — the
+// whole piece scrolls sideways rather than wrapping into stacked systems.
+const LAB_BARS_PER_SYSTEM = 8; // kept for legacy playhead math fallback
+
+// Horizontal zoom presets (px per quarter-note beat). Bigger beats + taller
+// rows make the note cells read closer to square, which the user asked for.
+const LAB_ZOOMS = [22, 30, 40, 52, 68];
+
+function labBeatWidth() {
+  const zoom = Number.isFinite(window.labZoom) ? window.labZoom : 40;
+  return Math.max(14, Math.min(96, zoom));
+}
+
+/** Whole span of the piece in beats, rounded up to a full bar. */
+function labScoreSpan(advice = window.currentLabAdvice) {
+  const timeline = advice?.timeline || { beats_per_bar: 4, total_beats: 16, bars: 4 };
+  const beatsPerBar = timeline.beats_per_bar || 4;
+  const raw = timeline.total_beats || beatsPerBar * (timeline.bars || 4);
+  return Math.max(beatsPerBar, Math.ceil(raw / beatsPerBar) * beatsPerBar);
+}
 
 function labScoreHtml(advice) {
   const timeline = advice.timeline || { beats_per_bar: 4, total_beats: 16, bars: 4, chromatic: false };
   window.labGridRows = (advice.melody_grid || []).map(row => row.midi);
-  const span = LAB_BARS_PER_SYSTEM * timeline.beats_per_bar;
-  const systems = Math.max(1, Math.ceil(timeline.bars / LAB_BARS_PER_SYSTEM));
+  const span = labScoreSpan(advice);
+  window.labTotalBeats = span;
   const selected = labSelectedChord(advice);
   return `${labScoreHeadHtml(advice, timeline, selected)}
     <div class="lab-systems">
-      ${Array.from({ length: systems }, (_, index) => labSystemHtml(advice, timeline, index * span, span, index)).join("")}
+      ${labSystemHtml(advice, timeline, 0, span, 0)}
     </div>`;
 }
 
@@ -4175,8 +4214,11 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
   const selectedNotes = window.labSelectedNotes || [];
   const activeVoice = window.labActiveVoice || 1;
   const inSystem = at => at >= offset && at < offset + span;
-  const bars = Array.from({ length: LAB_BARS_PER_SYSTEM }, (_, bar) =>
-    `<span class="lab-bar" style="--at:${bar * timeline.beats_per_bar};--span:${timeline.beats_per_bar}">${systemIndex * LAB_BARS_PER_SYSTEM + bar + 1}</span>`).join("");
+  const beatsPerBar = timeline.beats_per_bar || 4;
+  const barCount = Math.max(1, Math.round(span / beatsPerBar));
+  const firstBar = Math.round(offset / beatsPerBar);
+  const bars = Array.from({ length: barCount }, (_, bar) =>
+    `<span class="lab-bar" style="--at:${bar * beatsPerBar};--span:${beatsPerBar}">${firstBar + bar + 1}</span>`).join("");
 
   const rows = grid.map(row => {
     const deg = row.degree_index === null || row.degree_index === undefined ? "" : `--deg:var(--deg-${row.degree_index + 1});`;
@@ -4201,9 +4243,10 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
   // click to hear it. No buttons to squeeze into a one-beat card.
   const lane = (advice.chords || []).map((chord, index) => [chord, index])
     .filter(([chord]) => inSystem(chord.start))
-    .map(([chord, index]) => `<article class="lab-lane-chord ${index === window.labSelectedChordIndex ? "selected" : ""}" style="--start:${chord.start - offset};--len:${chord.beats};--deg:var(--deg-${(chord.degree_index ?? 0) + 1})" data-chord="${index}" onpointerdown="labChordPointerDown(event,${index})" title="${esc(chord.symbol)} · ${esc(chord.degree)} · ${chord.beats} доли — тяните, чтобы двигать; за правый край — растянуть">
+    .map(([chord, index]) => `<article class="lab-lane-chord ${index === window.labSelectedChordIndex ? "selected" : ""}" style="--start:${chord.start - offset};--len:${chord.beats};--deg:var(--deg-${(chord.degree_index ?? 0) + 1})" data-chord="${index}" onpointerdown="labChordPointerDown(event,${index})" title="${esc(chord.symbol)} · ${esc(chord.degree)} · ${chord.beats} доли — тяните, чтобы двигать; за края — растянуть">
+      <b class="lab-chord-grip lab-chord-grip-left"></b>
       <span class="lab-lane-name"><b>${esc(chord.degree)}</b><strong>${esc(chord.symbol)}</strong></span>
-      <b class="lab-chord-grip"></b></article>`).join("");
+      <b class="lab-chord-grip lab-chord-grip-right"></b></article>`).join("");
 
   const loop = window.labLoop;
   const from = loop ? Math.max(loop.from, offset) : 0;
@@ -4212,13 +4255,13 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
     ? `<i class="lab-loop" style="--from:${from - offset};--len:${to - from}" title="Луп ${loop.from}–${loop.to} доли"><b onpointerdown="event.stopPropagation();clearLabLoop()" title="Убрать луп">×</b></i>`
     : "";
 
-  return `<div class="lab-score lab-system" data-offset="${offset}" style="--beats:${span};--bar:${timeline.beats_per_bar}">
+  return `<div class="lab-score lab-system" data-offset="${offset}" style="--beats:${span};--bar:${beatsPerBar};--beat:${labBeatWidth()}px">
       <div class="lab-score-inner">
         <i class="lab-playhead" data-playhead="${systemIndex}" style="--pos:0" hidden></i>
         <i class="lab-marquee" data-marquee="${systemIndex}" hidden></i>
         <div class="lab-ruler"><span class="lab-row-label">луп</span><span class="lab-row-track" onpointerdown="labLoopPointerDown(event)" title="Протяните по линейке, чтобы задать луп">${bars}${loopBand}</span></div>
         <div class="lab-rows">${rows || `<p class="field-hint">Сетка появится после выбора лада</p>`}</div>
-        <div class="lab-lane-row"><span class="lab-row-label">Гармония</span><span class="lab-row-track" onpointerdown="labLaneBackgroundDown(event)">${lane}</span></div>
+        <div class="lab-lane-row"><span class="lab-row-label">Гармония</span><span class="lab-row-track" onpointerdown="labLaneBackgroundDown(event)" ondblclick="labLaneDblClick(event)" title="Двойной клик — палитра аккордов">${lane}</span></div>
       </div>
     </div>`;
 }
@@ -4226,19 +4269,85 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
 function labScoreHeadHtml(advice, timeline, selected) {
   const hidden = (advice.melody || []).filter(note => !note.in_scale).length;
   return `<div class="lab-score-head">
-      <strong>Партитура</strong>
-      <label class="lab-chromatic"><input type="checkbox" ${timeline.chromatic ? "checked" : ""} onchange="setLabChromatic(this.checked)"><span>Хроматика</span></label>
-      <label class="lab-duration">Нота<select onchange="setLabNoteLength(this.value)">${LAB_NOTE_LENGTHS.map(([value, label]) => `<option value="${value}" ${(window.labNoteLength || 1) === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
-      <label class="lab-duration" title="Регистр сетки: смещает видимые октавы, чтобы писать верх/низ без прокрутки">Регистр<select onchange="setLabOctave(this.value)">${LAB_REGISTERS.map(([value, label]) => `<option value="${value}" ${(window.labOctave || 0) === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
-      <label class="lab-duration">Сетка<select onchange="setLabSnap(this.value)">${LAB_SNAPS.map(([value, label]) => `<option value="${value}" ${(window.labSnapBeats || 0.5) === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
-      ${selected ? `<label class="lab-duration">Длина <b class="lab-truncate" title="${esc(selected.symbol)}">${esc(selected.symbol)}</b><select onchange="labEdit('duration',this.value)">${LAB_DURATIONS.map(([value, label]) => `<option value="${value}" ${selected.beats === value ? "selected" : ""}>${label} такта</option>`).join("")}</select></label>` : ""}
       ${hidden && !timeline.chromatic
         // A note outside the scale has no row while the grid is diatonic, so it
         // would silently vanish from view even though it still plays.
         ? `<button type="button" class="lab-hidden-warning" onclick="setLabChromatic(true)">Скрыто вне лада: ${hidden} — показать хроматику</button>`
         : ""}
-      <small>${timeline.bars} т. · ${timeline.beats_per_bar}/4 · по ${LAB_BARS_PER_SYSTEM} т. в строке</small>
+      <small>${timeline.bars} т. · ${timeline.beats_per_bar}/4</small>
     </div>`;
+}
+
+// ── Contextual top bar: chord palette OR note menu, by what you're editing ───
+// Clicking the harmony lane shows the chord palette (drag-drop, Hookpad-style);
+// clicking the piano roll shows the note menu (default length, range, grid…).
+
+function labContextBarHtml(advice) {
+  const mode = window.labContextMode === "note" ? "note" : "chord";
+  return `<div class="lab-ctxbar">
+    <div class="lab-ctxbar-tabs" role="tablist" aria-label="Что редактируем">
+      <button type="button" role="tab" aria-selected="${mode === "chord"}" class="${mode === "chord" ? "active" : ""}" onclick="setLabContextMode('chord')">Аккорды</button>
+      <button type="button" role="tab" aria-selected="${mode === "note"}" class="${mode === "note" ? "active" : ""}" onclick="setLabContextMode('note')">Ноты</button>
+    </div>
+    <div class="lab-ctxbar-body">${mode === "note" ? labNoteMenuHtml(advice) : labChordPaletteHtml(advice)}</div>
+  </div>`;
+}
+
+/** The "note menu": default duration, the melody range, snap grid, chromatic,
+ *  horizontal zoom — everything that shapes how notes are written. */
+function labNoteMenuHtml(advice) {
+  const timeline = advice.timeline || {};
+  const dur = window.labNoteLength || 1;
+  const oct = window.labOctave || 0;
+  const snap = window.labSnapBeats || 0.5;
+  return `<div class="lab-notemenu">
+    <label class="lab-rollctl-field" title="Длительность новой ноты по умолчанию — с ней ставятся ноты кликом по сетке">
+      <span>Длина ноты</span>
+      <select onchange="setLabNoteLength(this.value)">${LAB_NOTE_LENGTHS.map(([value, label]) => `<option value="${value}" ${dur === value ? "selected" : ""}>${label}</option>`).join("")}</select>
+    </label>
+    <label class="lab-rollctl-field" title="Диапазон нот мелодии: какие октавы видны на сетке — смещайте, чтобы писать верх или низ без прокрутки">
+      <span>Диапазон</span>
+      <select onchange="setLabOctave(this.value)">${LAB_REGISTERS.map(([value, label]) => `<option value="${value}" ${oct === value ? "selected" : ""}>${label}</option>`).join("")}</select>
+    </label>
+    <label class="lab-rollctl-field" title="Шаг сетки для привязки нот и аккордов">
+      <span>Сетка</span>
+      <select onchange="setLabSnap(this.value)">${LAB_SNAPS.map(([value, label]) => `<option value="${value}" ${snap === value ? "selected" : ""}>${label}</option>`).join("")}</select>
+    </label>
+    <label class="lab-rollctl-check" title="Показать все хроматические ступени в сетке"><input type="checkbox" ${timeline.chromatic ? "checked" : ""} onchange="setLabChromatic(this.checked)"><span>Хроматика</span></label>
+    <span class="lab-rollctl-zoom" title="Масштаб дорожки по горизонтали">
+      <span>Масштаб</span>
+      <button type="button" onclick="labZoomStep(-1)" aria-label="Уменьшить масштаб">−</button>
+      <button type="button" onclick="labZoomStep(1)" aria-label="Увеличить масштаб">＋</button>
+    </span>
+  </div>`;
+}
+
+function labRenderContextBar() {
+  if (document.getElementById("lab-context-bar")) labSetRegion("lab-context-bar", labContextBarHtml(window.currentLabAdvice));
+}
+
+function setLabContextMode(mode) {
+  const next = mode === "note" ? "note" : "chord";
+  if (window.labContextMode === next) return;
+  window.labContextMode = next;
+  labRenderContextBar();
+}
+
+function labZoomStep(dir) {
+  const cur = labBeatWidth();
+  let idx = LAB_ZOOMS.findIndex(z => Math.abs(z - cur) < 3);
+  if (idx < 0) idx = LAB_ZOOMS.findIndex(z => z >= cur);
+  if (idx < 0) idx = LAB_ZOOMS.length - 1;
+  window.labZoom = LAB_ZOOMS[Math.max(0, Math.min(LAB_ZOOMS.length - 1, idx + (dir > 0 ? 1 : -1)))];
+  labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
+}
+
+/** Double-click a chord block selects it for replacement from the palette. */
+function labLaneDblClick(event) {
+  const block = event.target.closest?.(".lab-lane-chord");
+  if (block) selectLabChord(Number(block.dataset.chord));
+  else deselectLabChord(event);
+  setLabContextMode("chord");
 }
 
 async function setLabChromatic(on) {
@@ -4281,19 +4390,17 @@ async function labNoteEdit(op, payload = {}) {
   } catch (error) { toast(error.message); }
 }
 
-/** A click on empty grid space writes a note; a drag rubber-bands a selection. */
+/** A click on empty grid space writes a note; Shift-drag rubber-bands a
+ *  selection. Adding on the down-press (not on release) makes clicks reliable —
+ *  a shaky mouse or trackpad tap no longer gets swallowed as an empty marquee. */
 function labRowPointerDown(event, midi) {
   if (event.target.closest(".lab-note")) return;
   event.preventDefault();
+  setLabContextMode("note");
   const track = event.currentTarget;
+  if (event.shiftKey || event.button === 2) { labMarqueeStart(event, track); return; }
   const beats = labSnap(labTrackBeats(track, event.clientX));
-  const wasDragged = labMarqueeStart(event, track);
-  const onUp = () => {
-    window.removeEventListener("pointerup", onUp);
-    if (wasDragged()) return;
-    labNoteEdit("add", { pitch: midi, start: beats, duration: window.labNoteLength || 1, voice: window.labActiveVoice || 1 });
-  };
-  window.addEventListener("pointerup", onUp);
+  labNoteEdit("add", { pitch: midi, start: beats, duration: window.labNoteLength || 1, voice: window.labActiveVoice || 1 });
 }
 
 /** Drag a note to move it, or drag its right edge to change the length. */
@@ -4351,7 +4458,8 @@ function labTrackBeats(track, clientX) {
   return Math.max(0, labSystemOffset(track) + local);
 }
 
-/** Chord blocks are dragged to move, edge-dragged to resize, clicked to play. */
+/** Chord blocks move freely and resize from either edge; dropping over another
+ *  chord trims it (the moved block wins). A plain click selects and plays. */
 function labChordPointerDown(event, index) {
   event.stopPropagation();
   event.preventDefault();
@@ -4359,35 +4467,33 @@ function labChordPointerDown(event, index) {
   const chord = (advice?.chords || [])[index];
   if (!chord) return;
   const element = event.currentTarget;
-  const track = element.closest(".lab-row-track");
-  const resizing = !!event.target.closest(".lab-chord-grip");
+  const resizeRight = !!event.target.closest(".lab-chord-grip-right");
+  const resizeLeft = !!event.target.closest(".lab-chord-grip-left");
   const beatPx = labBeatPx();
   const originX = event.clientX;
+  const end = chord.start + chord.beats;
+  const minBeats = window.labSnapBeats || 0.5;
   let moved = false;
   let nextBeats = chord.beats;
-  let target = chord.start;
-
-  // Neighbours on the time axis, so a resize or move stops at them instead of
-  // overlapping (Hookpad-style — the edge butts up against the next chord).
-  const others = (advice.chords || []).map((c, i) => ({ start: c.start, beats: c.beats, i })).filter(c => c.i !== index);
-  const nextStart = Math.min(Infinity, ...others.filter(c => c.start > chord.start + 1e-6).map(c => c.start));
-  const prevEnd = Math.max(0, ...others.filter(c => c.start <= chord.start - 1e-6).map(c => c.start + c.beats));
-  const minBeats = window.labSnapBeats || 0.5;
+  let nextStart = chord.start;
 
   const onMove = pointer => {
     if (Math.abs(pointer.clientX - originX) > 3) moved = true;
     if (!moved) return;
-    if (resizing) {
-      nextBeats = Math.max(minBeats, labSnap(chord.beats + (pointer.clientX - originX) / beatPx));
-      if (isFinite(nextStart)) nextBeats = Math.min(nextBeats, Math.max(minBeats, nextStart - chord.start));
+    const dBeats = (pointer.clientX - originX) / beatPx;
+    if (resizeRight) {
+      nextBeats = Math.max(minBeats, labSnap(chord.beats + dBeats));
+      element.style.setProperty("--len", nextBeats);
+    } else if (resizeLeft) {
+      // Right edge is anchored; drag the start, length follows.
+      nextStart = Math.max(0, Math.min(labSnap(chord.start + dBeats), end - minBeats));
+      nextBeats = Math.max(minBeats, end - nextStart);
+      element.style.setProperty("--start", nextStart - labSystemOffset(element));
       element.style.setProperty("--len", nextBeats);
     } else {
-      // Free placement between the neighbours, snapped to the grid.
-      target = labSnap(chord.start + (pointer.clientX - originX) / beatPx);
-      target = Math.max(prevEnd, target);
-      if (isFinite(nextStart)) target = Math.min(target, Math.max(prevEnd, nextStart - chord.beats));
-      element.style.setProperty("--start", target - labSystemOffset(element));
-      element.style.opacity = ".7";
+      nextStart = Math.max(0, labSnap(chord.start + dBeats));
+      element.style.setProperty("--start", nextStart - labSystemOffset(element));
+      element.style.opacity = ".75";
     }
   };
   const onUp = () => {
@@ -4399,8 +4505,9 @@ function labChordPointerDown(event, index) {
       labPlay([chord.midi]);
       return;
     }
-    if (resizing) labEdit("duration", nextBeats, index);
-    else if (target !== chord.start) labEdit("position", target, index);
+    if (resizeRight) labEdit("duration", nextBeats, index);
+    else if (resizeLeft) labEdit("resize_left", nextStart, index);
+    else if (nextStart !== chord.start) labEdit("position", nextStart, index);
     else labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
   };
   window.addEventListener("pointermove", onMove);
@@ -4408,6 +4515,7 @@ function labChordPointerDown(event, index) {
 }
 
 function labLaneBackgroundDown(event) {
+  setLabContextMode("chord");
   if (event.target.closest(".lab-lane-chord")) return;
   deselectLabChord(event);
 }
@@ -4504,6 +4612,7 @@ function selectLabNote(index) {
   window.labSelectedNote = index;
   window.labSelectedNotes = [index];
   window.labInspector = "note";
+  setLabContextMode("note");
   document.querySelectorAll(".lab-note").forEach(item => item.classList.toggle("selected", Number(item.dataset.note) === index));
   labSetRegion("lab-chord-inspector", labInspectorHtml(window.currentLabAdvice));
 }
@@ -4556,11 +4665,27 @@ function labVoicesBarHtml(advice) {
     ${labMixerHtml()}`;
 }
 
-/** Per-part volume mixer (chords + voices), scaling MIDI velocity. */
+/** Per-part vertical volume mixer (chords + voices), scaling MIDI velocity.
+ *  Faders are tall for precision; double-click a fader resets it to 100%. */
 function labMixerHtml() {
   const vol = labPartVolume();
-  const slider = (part, label) => `<label class="lab-mix" title="Громкость: ${label} (${Math.round((vol[part] ?? 1) * 100)}%)"><small>${label}</small><input type="range" min="0" max="1.5" step="0.05" value="${vol[part] ?? 1}" oninput="setLabPartVolume('${part}', this.value)"></label>`;
-  return `<div class="lab-voices-mix"><span class="lab-voices-label">Громкость</span>${slider("chords", "Акк")}${slider("v1", "Г1")}${slider("v2", "Г2")}${slider("v3", "Г3")}${slider("v4", "Г4")}</div>`;
+  const strip = (part, label) => {
+    const v = vol[part] ?? 1;
+    return `<div class="lab-mix" data-part="${part}" title="Громкость ${label} — двойной клик сбрасывает на 100%">
+      <b class="lab-mix-val">${Math.round(v * 100)}%</b>
+      <span class="lab-mix-fader">
+        <input type="range" min="0" max="1.5" step="0.01" value="${v}" aria-label="Громкость ${label}"
+          oninput="setLabPartVolume('${part}', this.value)" ondblclick="resetLabPartVolume('${part}')">
+      </span>
+      <small class="lab-mix-name">${label}</small>
+    </div>`;
+  };
+  return `<div class="lab-voices-mix">
+    <span class="lab-voices-label">Микшер</span>
+    <div class="lab-mixer">
+      ${strip("chords", "Акк")}${strip("v1", "Г1")}${strip("v2", "Г2")}${strip("v3", "Г3")}${strip("v4", "Г4")}
+    </div>
+  </div>`;
 }
 
 /** Picker to copy another instance's content into this one — a one-shot copy,
@@ -4628,7 +4753,9 @@ document.addEventListener("keydown", event => {
     event.preventDefault();
     ptmAudio.isPlaying() ? labStopScore() : labPlayScore(document.querySelector(".lab-tool-play"));
   } else if (event.key === "Escape") {
-    if (ptmAudio.isPlaying()) labStopScore(); else deselectLabChord();
+    const drawerOpen = document.querySelector(".lab-drawer:not([hidden])");
+    if (drawerOpen) { event.preventDefault(); closeLabDrawers(); }
+    else if (ptmAudio.isPlaying()) labStopScore(); else deselectLabChord();
   } else if (event.key === "Delete" || event.key === "Backspace") {
     if (window.labInspector === "note" && (window.labSelectedNotes || []).length) {
       event.preventDefault();
@@ -4685,7 +4812,71 @@ function labCompactToolbarHtml(sketch) {
     <label class="lab-meta-field lab-mode-field"><span class="lab-field-label">Лад</span><select id="lab-mode" onchange="patchLabContext({mode:this.value})">${labModeOptions(sketch.mode)}</select></label>
     ${labBpmPicker(sketch.bpm)}
     <label class="lab-meta-field lab-meter-field"><span class="lab-field-label">Размер</span><select id="lab-meter" onchange="patchLabContext({meter:this.value})">${LAB_METERS.map(item => `<option value="${item}" ${item === sketch.meter ? "selected" : ""}>${item}</option>`).join("")}</select></label>
+    <div class="lab-tool-group lab-tool-panels" aria-label="Панели">
+      <button type="button" id="lab-voices-btn" class="lab-tool-btn" onclick="toggleLabVoices()" aria-expanded="false" title="Голоса инструмента, MIDI-выход и микшер">Голоса</button>
+      <button type="button" class="lab-tool-btn" onclick="exportLabMidi(this)" title="Экспорт MIDI: создаёт .mid по частям и открывает папку — файлы можно перетащить в DAW">↧ MIDI</button>
+    </div>
+    <div class="lab-tool-group lab-tool-actions">
+      ${labFocusMode() ? `<button type="button" class="lab-tool-btn" onclick="window.close()">Закрыть</button>` : `<button type="button" class="lab-tool-btn" onclick="openLabFocus()" title="Открыть редактор на весь экран">⤢</button>`}
+      <button type="button" class="lab-tool-btn lab-tool-danger" onclick="deleteLabSketch()" title="Удалить эскиз">🗑</button>
+    </div>
     <span id="lab-save-state" class="lab-save-state lab-visually-hidden" aria-live="polite">сохранено</span>`;
+}
+
+// ── Slide-out drawers: chord palette and voices/mixer ───────────────────────
+
+function openLabDrawer(which) {
+  const palette = document.getElementById("lab-palette-drawer");
+  const voices = document.getElementById("lab-voices-drawer");
+  const scrim = document.getElementById("lab-drawer-scrim");
+  const target = which === "palette" ? palette : voices;
+  const other = which === "palette" ? voices : palette;
+  if (!target) return;
+  if (other) { other.hidden = true; other.setAttribute("aria-hidden", "true"); }
+  target.hidden = false;
+  target.setAttribute("aria-hidden", "false");
+  if (scrim) scrim.hidden = false;
+  document.getElementById("lab-palette-btn")?.setAttribute("aria-expanded", String(which === "palette"));
+  document.getElementById("lab-voices-btn")?.setAttribute("aria-expanded", String(which === "voices"));
+}
+
+function closeLabDrawers() {
+  for (const id of ["lab-palette-drawer", "lab-voices-drawer"]) {
+    const el = document.getElementById(id);
+    if (el) { el.hidden = true; el.setAttribute("aria-hidden", "true"); }
+  }
+  const scrim = document.getElementById("lab-drawer-scrim");
+  if (scrim) scrim.hidden = true;
+  document.getElementById("lab-palette-btn")?.setAttribute("aria-expanded", "false");
+  document.getElementById("lab-voices-btn")?.setAttribute("aria-expanded", "false");
+}
+
+function openLabPalette() { openLabDrawer("palette"); }
+
+function toggleLabPalette() {
+  const el = document.getElementById("lab-palette-drawer");
+  if (el && el.hidden) openLabDrawer("palette"); else closeLabDrawers();
+}
+
+function toggleLabVoices() {
+  const el = document.getElementById("lab-voices-drawer");
+  if (el && el.hidden) openLabDrawer("voices"); else closeLabDrawers();
+}
+
+/** Export each part as a .mid into a folder on the desktop and open it, so the
+ *  files can be dragged straight into the DAW. */
+async function exportLabMidi(button) {
+  if (!currentSketchId) return;
+  if (button) button.disabled = true;
+  try {
+    const result = await api(`/sketches/${currentSketchId}/export-midi`, { method: "POST", body: "{}" });
+    const files = (result.files || []).length;
+    toast(files ? `MIDI сохранён (${files} файл(ов)) — папка открыта` : "Нет нот для экспорта");
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 const LAB_INSERT_TABS = [["mode", "Лад"], ["context", "После аккорда"], ["key", "В тональности"], ["theory", "По теории"]];
@@ -4728,12 +4919,15 @@ async function setLabInsertTab(tab) {
 function labChordPaletteHtml(advice) {
   const selected = labSelectedChord(advice);
   const context = advice.palette_context || {};
-  const shape = [context.type && context.type !== "triad" ? context.type : "", context.inversion ? `${context.inversion}-е обращение` : ""].filter(Boolean).join(" · ");
-  const modes = [["", `${esc(advice.key.label)} (свой лад)`], ...LAB_BORROW_MODES.map(([value, label]) => [value, label])];
-  return `<div class="lab-palette-head"><span>Аккорды лада · ${esc(context.borrowed ? context.label : advice.key.label)}${shape ? ` <i>${esc(shape)}</i>` : ""}</span>
-    <label class="lab-palette-mode">Палитра в ладу<select onchange="setLabPaletteMode(this.value)">${modes.map(([value, label]) => `<option value="${value}" ${(window.labPaletteMode || "") === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
-    <small class="lab-palette-hint">${selected ? `Заменит <b>${esc(selected.symbol)}</b>` : "Добавит в конец"}</small></div>
-    <div class="lab-palette-row">${(advice.diatonic_palette || []).map(item => labChordCellHtml(item, item.degree_index, context)).join("")}</div>`;
+  const modes = [["", "свой лад"], ...LAB_BORROW_MODES.map(([value, label]) => [value, label])];
+  const hintTitle = selected
+    ? `Клик по ступени заменит ${esc(selected.symbol)}; перетащите на гармонию, чтобы вставить`
+    : "Клик добавит аккорд в конец; перетащите на дорожку гармонии, чтобы вставить в нужное место";
+  return `<div class="lab-palette">
+    <span class="lab-palette-hint ${selected ? "is-replace" : ""}" title="${hintTitle}">${selected ? `⇄ ${esc(selected.symbol)}` : "＋ в конец"}</span>
+    <select class="lab-palette-mode" title="В каком ладу читать палитру ступеней" onchange="setLabPaletteMode(this.value)">${modes.map(([value, label]) => `<option value="${value}" ${(window.labPaletteMode || "") === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select>
+    <div class="lab-palette-row">${(advice.diatonic_palette || []).map(item => labChordCellHtml(item, item.degree_index, context)).join("")}</div>
+  </div>`;
 }
 
 /** One compact, degree-coloured cell: play on the left, insert on the right. */
@@ -4769,7 +4963,7 @@ function deselectLabChord(event) {
   window.labSelectedChordIndex = null;
   window.labInspector = "chord";
   labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
-  labSetRegion("lab-insert-body", labInsertBodyHtml(window.currentLabAdvice));
+  labRenderContextBar();
   labSetRegion("lab-chord-inspector", labInspectorHtml(window.currentLabAdvice));
 }
 
@@ -4872,7 +5066,7 @@ function applyLabAdvice(advice, { syncChordText = false } = {}) {
     if (input && input.value !== advice.chord_input) input.value = advice.chord_input;
   }
   labSetRegion("lab-analysis", labAnalysisHtml(advice));
-  labSetRegion("lab-insert-body", labInsertBodyHtml(advice));
+  labRenderContextBar();
   labSetRegion("lab-chord-inspector", labInspectorHtml(advice));
   labSetRegion("lab-score", labScoreHtml(advice));
   labSetRegion("lab-scale-strip", labScaleHtml(advice));
@@ -5116,6 +5310,7 @@ async function appendLabChord(symbol) {
 async function selectLabChord(index) {
   const wasNote = window.labInspector === "note";
   window.labInspector = "chord";
+  setLabContextMode("chord");
   if (index === window.labSelectedChordIndex) {
     if (wasNote) labSetRegion("lab-chord-inspector", labInspectorHtml(window.currentLabAdvice));
     return;
@@ -5124,6 +5319,7 @@ async function selectLabChord(index) {
   const advice = window.currentLabAdvice;
   labSetRegion("lab-score", labScoreHtml(advice));
   labSetRegion("lab-chord-inspector", labInspectorHtml(advice));
+  labRenderContextBar();
   const requestId = (window.labAdviceRequestId || 0) + 1;
   window.labAdviceRequestId = requestId;
   try {
@@ -5132,6 +5328,7 @@ async function selectLabChord(index) {
     window.currentLabAdvice = fresh;
     labSetRegion("lab-insert-body", labInsertBodyHtml(fresh));
     labSetRegion("lab-score", labScoreHtml(fresh));
+    labRenderContextBar();
   } catch (error) { toast(error.message); }
 }
 
@@ -5196,7 +5393,7 @@ function syncLabDawPlayback(state = {}) {
   const rangeFrom = loop ? loop.from : 0;
   const rangeLength = loop ? Math.max(.25, loop.to - loop.from) : scoreEnd;
   const beat = rangeFrom + ((((Number(state.ppq) || 0) - rangeFrom) % rangeLength) + rangeLength) % rangeLength;
-  const span = LAB_BARS_PER_SYSTEM * (advice.timeline?.beats_per_bar || 4);
+  const span = labScoreSpan(advice);
   const active = Math.floor(beat / span);
   document.querySelectorAll(".lab-system").forEach((system, index) => {
     const head = system.querySelector(".lab-playhead");
@@ -5251,7 +5448,7 @@ function labPlayScore(button, options = {}) {
   ].filter(within).map(item => ({ ...item, at: (item.at - (loop ? loop.from : 0)) * beatSec, dur: item.dur * beatSec }));
   if (!events.length) return toast("В выбранном лупе нечего играть");
   const systems = [...document.querySelectorAll(".lab-system")];
-  const span = LAB_BARS_PER_SYSTEM * (advice.timeline?.beats_per_bar || 4);
+  const span = labScoreSpan(advice);
   if (button) button.classList.add("is-playing");
   ptmAudio.playTimeline(events, {
     loop: !!loop || !!options.daw,

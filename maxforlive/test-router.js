@@ -78,6 +78,23 @@ rD.tick(0.02, true, function (s, n, v) { wrapLog.push({ status: s, note: n }); }
 check("wrap re-fires chord tone 60", wrapLog.some(function (e) { return e.status === 144 && e.note === 60; }));
 check("wrap re-fires voice1 note 72", wrapLog.some(function (e) { return e.status === 144 && e.note === 72; }));
 
+console.log("Scenario E — coarse, low-rate ticks must NOT retrigger a held note");
+// Regression for the Ableton bug: transport read arrived ~0.35 beats apart, so
+// every forward tick looked like a jump and re-fired the sounding chord.
+var rE = new Router();
+rE.setSketch({ chords: [{ start: 0, beats: 16, midi: [48, 60, 64, 67] }], melody: [] });
+check("single long chord, cycle 16", rE.cycleBeats === 16);
+rE.setPart("chords", true); rE.setPart("v1", false);
+var logE = [];
+var nowE = 0;
+for (var t = 0; t <= 15.5; t += 0.37) {           // coarse ~0.37-beat steps
+  nowE = t;
+  rE.tick(nowE, true, function (s, n, v) { logE.push({ t: nowE, status: s, note: n }); });
+}
+check("chord 48 fires exactly ONCE across the cycle (not per tick)", ons(logE, 48).length === 1);
+check("that one fire is at the start (~beat 0)", ons(logE, 48).length === 1 && ons(logE, 48)[0].t < 0.4);
+check("no chord tone retriggers mid-cycle", ons(logE, 60).length === 1 && ons(logE, 64).length === 1 && ons(logE, 67).length === 1);
+
 console.log("");
 console.log(failures === 0 ? "ALL PASS" : (failures + " FAILURES"));
 process.exit(failures === 0 ? 0 : 1);

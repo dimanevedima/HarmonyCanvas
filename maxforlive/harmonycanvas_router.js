@@ -18,16 +18,13 @@
  */
 
 /* global outlet, post, LiveAPI, jsarguments */
-
-(function (root) {
-  "use strict";
+// Runs at top level (no wrapper): Max registers message handlers only when
+// they are global function declarations, so `bang`/`sketch`/`chords`/`voice`
+// live at the bottom as plain functions.
 
   var CHORD_VELOCITY = 80;
   var VOICE_VELOCITY = 100;
   var EPS = 1e-6;
-  // A transport discontinuity bigger than this (in beats) is treated as a jump
-  // or loop wrap rather than normal forward playback.
-  var MAX_STEP = 0.25;
 
   function defaultParts() {
     return { chords: true, v1: true, v2: false, v3: false, v4: false };
@@ -106,12 +103,11 @@
       return;
     }
 
-    var jumped = this.wasPlaying &&
-      (now < this.lastBeat - EPS || now > this.lastBeat + MAX_STEP);
-    if (!this.wasPlaying || jumped) {
-      // On start or a loop/seek jump, sound whatever should already be playing
-      // at `now` (including a note that begins exactly on this beat), then let
-      // the next ticks advance normally.
+    // Resync (release + re-sound what should be playing at `now`) only on
+    // playback start or a backward jump (loop wrap / seek back). Forward motion
+    // — even coarse, low-rate ticks — is handled by the occurrence loop below,
+    // so a held note is never retriggered just because ticks arrive slowly.
+    if (!this.wasPlaying || now < this.lastBeat - EPS) {
       this.allNotesOff(sink);
       this.startAt(now, sink);
       this.lastBeat = now;
@@ -179,34 +175,57 @@
     module.exports = { Router: Router, defaultParts: defaultParts };
   }
 
-  // ── Max [js] glue ─────────────────────────────────────────────────────────
-  // Only wires up when running inside Max (outlet/LiveAPI exist). The patch is
-  // expected to: bang this object from a [metro], send it `sketch <json>` from
-  // the HTTP fetch, and toggle parts with `chords 0/1` and `voice N 0/1`.
-  if (typeof outlet === "function") {
-    var router = new Router();
-    var live = null;
+// ── Max [js] glue — top-level handlers so Max registers them ────────────────
+// The patch bangs this from a [metro], sends `sketch <json>` from the HTTP
+// fetch, and toggles parts with `chords 0/1` / `voice N 0/1`. In Node these are
+// defined but never called (only Router is exercised by the test harness).
+var g_router = new Router();
+var g_live = null;
+var g_bangCount = 0;
+var g_sketchCount = 0;
 
-    // eslint-disable-next-line no-unused-vars
-    root.bang = function () {
-      if (live === null) live = new LiveAPI(null, "live_set");
-      var playing = Number(live.get("is_playing")) > 0;
-      var beat = Number(live.get("current_song_time"));
-      router.tick(beat, playing, function (status, note, vel) {
-        outlet(0, status, note, vel);
-      });
-    };
+// Logging is OFF by default: post() is slow in Max, and logging every note or
+// tick throttles the js enough to smear MIDI timing. Flip HC_DEBUG to true only
+// while diagnosing. Load and errors always log.
+var HC_DEBUG = false;
+function hcLog(msg) { if (typeof post !== "undefined") post("[HC] " + msg + "\n"); }
+function hcDbg(msg) { if (HC_DEBUG) hcLog(msg); }
 
-    root.sketch = function (json) {
-      router.setSketch(json);
-    };
+hcLog("router.js loaded");
 
-    root.chords = function (on) { router.setPart("chords", Number(on) > 0); };
+function hcSink(status, note, vel) { outlet(0, status, note, vel); }
 
-    root.voice = function (n, on) { router.setPart("v" + (n | 0), Number(on) > 0); };
-
-    root.stop = function () {
-      router.allNotesOff(function (status, note, vel) { outlet(0, status, note, vel); });
-    };
+function bang() {
+  if (typeof LiveAPI === "undefined") return;
+  try {
+    if (g_live === null) g_live = new LiveAPI(null, "live_set");
+    var playing = Number(g_live.get("is_playing")) > 0;
+    var beat = Number(g_live.get("current_song_time"));
+    g_router.tick(beat, playing, hcSink);
+  } catch (e) {
+    hcLog("bang ERROR: " + e.message);
   }
-})(this);
+}
+
+function sketch(json) {
+  g_router.setSketch(json);
+  g_sketchCount++;
+  hcDbg("sketch #" + g_sketchCount + " -> " + g_router.events.length + " events, cycle " + g_router.cycleBeats);
+}
+
+function chords(on) { g_router.setPart("chords", Number(on) > 0); hcLog("part chords=" + (Number(on) > 0)); }
+
+function voice(n, on) { g_router.setPart("v" + (n | 0), Number(on) > 0); hcLog("part voice" + (n | 0) + "=" + (Number(on) > 0)); }
+
+function stop() { if (typeof outlet !== "undefined") g_router.allNotesOff(hcSink); }
+
+// The editor's Play/Stop, relayed by node.script: drive Ableton's transport so
+// the app launches playback and every player follows the same host clock.
+function transport(playing) {
+  if (typeof LiveAPI === "undefined") return;
+  try {
+    if (g_live === null) g_live = new LiveAPI(null, "live_set");
+    if (Number(playing) > 0) { g_live.call("start_playing"); hcLog("app -> START transport"); }
+    else { g_live.call("stop_playing"); hcLog("app -> STOP transport"); }
+  } catch (e) { hcLog("transport ERROR: " + e.message); }
+}
