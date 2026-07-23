@@ -4367,15 +4367,25 @@ function labChordPointerDown(event, index) {
   let nextBeats = chord.beats;
   let target = chord.start;
 
+  // Neighbours on the time axis, so a resize or move stops at them instead of
+  // overlapping (Hookpad-style — the edge butts up against the next chord).
+  const others = (advice.chords || []).map((c, i) => ({ start: c.start, beats: c.beats, i })).filter(c => c.i !== index);
+  const nextStart = Math.min(Infinity, ...others.filter(c => c.start > chord.start + 1e-6).map(c => c.start));
+  const prevEnd = Math.max(0, ...others.filter(c => c.start <= chord.start - 1e-6).map(c => c.start + c.beats));
+  const minBeats = window.labSnapBeats || 0.5;
+
   const onMove = pointer => {
     if (Math.abs(pointer.clientX - originX) > 3) moved = true;
     if (!moved) return;
     if (resizing) {
-      nextBeats = Math.max(window.labSnapBeats || 0.5, labSnap(chord.beats + (pointer.clientX - originX) / beatPx));
+      nextBeats = Math.max(minBeats, labSnap(chord.beats + (pointer.clientX - originX) / beatPx));
+      if (isFinite(nextStart)) nextBeats = Math.min(nextBeats, Math.max(minBeats, nextStart - chord.start));
       element.style.setProperty("--len", nextBeats);
     } else {
-      // Free placement: the block follows the pointer, snapped to the grid.
+      // Free placement between the neighbours, snapped to the grid.
       target = labSnap(chord.start + (pointer.clientX - originX) / beatPx);
+      target = Math.max(prevEnd, target);
+      if (isFinite(nextStart)) target = Math.min(target, Math.max(prevEnd, nextStart - chord.beats));
       element.style.setProperty("--start", target - labSystemOffset(element));
       element.style.opacity = ".7";
     }
@@ -4730,7 +4740,7 @@ function labChordPaletteHtml(advice) {
 function labChordCellHtml(item, degreeIndex, context = {}) {
   return `<span class="lab-cell ${item.borrowed ? "is-borrowed" : ""}" style="--deg:var(--deg-${(degreeIndex ?? 0) + 1})">
     <button type="button" class="lab-cell-play" onclick="labPlay([[${item.midi.join(",")}]],this)" aria-label="Проиграть ${esc(item.symbol)}" title="Проиграть">▶</button>
-    <button type="button" class="lab-cell-main" onclick="putLabChord('${esc(item.symbol)}')" title="${esc(item.symbol)}">
+    <button type="button" class="lab-cell-main" onpointerdown="labChordDragStart(event, '${esc(item.symbol)}')" title="${esc(item.symbol)} — клик добавит, перетащите на гармонию">
       <b>${esc(item.degree)}</b><strong>${esc(item.symbol)}</strong>${item.borrowed ? `<i>${esc((context.label || "").slice(0, 3))}</i>` : ""}
     </button></span>`;
 }
@@ -4900,6 +4910,56 @@ async function labEdit(op, value = "", index = null, { keepSelection = false } =
     if (!keepSelection) window.labSelectedChordIndex = advice.selected_index < 0 ? null : advice.selected_index;
     applyLabAdvice(advice, { syncChordText: true });
   } catch (error) { toast(error.message); }
+}
+
+/** Place a chord on the harmony lane at a specific beat (drag-drop from palette). */
+async function labInsertChordAt(symbol, beat) {
+  const requestId = (window.labAdviceRequestId || 0) + 1;
+  window.labAdviceRequestId = requestId;
+  labPushHistory();
+  try {
+    const advice = await api(`/sketches/${currentSketchId}/chord-edit`, {
+      method: "POST",
+      body: JSON.stringify({ index: 0, op: "insert_at", value: String(symbol), start: Math.max(0, beat), palette_mode: window.labPaletteMode, palette_secondary: window.labSecondary, chromatic: !!window.labChromatic, octave: window.labOctave || 0 }),
+    });
+    if (requestId !== window.labAdviceRequestId) return;
+    window.labSelectedChordIndex = advice.selected_index < 0 ? null : advice.selected_index;
+    applyLabAdvice(advice, { syncChordText: true });
+  } catch (error) { toast(error.message); }
+}
+
+/** Drag a palette chord onto the harmony lane; a plain click still inserts it. */
+function labChordDragStart(event, symbol) {
+  if (event.button) return;
+  event.preventDefault();
+  const startX = event.clientX, startY = event.clientY;
+  let dragging = false, ghost = null;
+  const laneTrack = point => document.elementFromPoint(point.clientX, point.clientY)?.closest(".lab-lane-row .lab-row-track");
+  const onMove = pointer => {
+    if (!dragging && (Math.abs(pointer.clientX - startX) > 5 || Math.abs(pointer.clientY - startY) > 5)) {
+      dragging = true;
+      ghost = document.createElement("div");
+      ghost.className = "lab-chord-ghost";
+      ghost.textContent = symbol;
+      document.body.appendChild(ghost);
+    }
+    if (!dragging) return;
+    ghost.style.left = `${pointer.clientX}px`;
+    ghost.style.top = `${pointer.clientY}px`;
+    const track = laneTrack(pointer);
+    document.querySelectorAll(".lab-lane-row .lab-row-track").forEach(t => t.classList.toggle("is-drop", t === track));
+  };
+  const onUp = pointer => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    document.querySelectorAll(".lab-lane-row .lab-row-track").forEach(t => t.classList.remove("is-drop"));
+    if (ghost) ghost.remove();
+    if (!dragging) return putLabChord(symbol);
+    const track = laneTrack(pointer);
+    if (track) labInsertChordAt(symbol, labSnap(labTrackBeats(track, pointer.clientX)));
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
 }
 
 // ── Undo history and clipboard ──────────────────────────────────────────────

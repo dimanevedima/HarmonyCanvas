@@ -407,6 +407,7 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
                     mode=sketch.get("mode", "major"),
                     chord_beats=sketch.get("chord_beats", []),
                     chord_starts=sketch.get("chord_starts", []),
+                    start=payload.get("start"),
                 )
                 updated = self.store.update(parts[2], {"chord_input": chord_input, "chord_beats": beats, "chord_starts": starts})
                 query = {

@@ -597,7 +597,7 @@ def _mode_context(tonic: str, mode: str) -> tuple[int, list[int], bool]:
     return tonic_pc, intervals, _prefers_flats(tonic, tonic_pc, mode_key)
 
 
-def apply_chord_edit(chord_input: str, *, index: int, op: str, value: str = "", tonic: str = "C", mode: str = "major", chord_beats: list[float] | None = None, chord_starts: list[float] | None = None) -> tuple[str, int, list[float], list[float]]:
+def apply_chord_edit(chord_input: str, *, index: int, op: str, value: str = "", tonic: str = "C", mode: str = "major", chord_beats: list[float] | None = None, chord_starts: list[float] | None = None, start: float | None = None) -> tuple[str, int, list[float], list[float]]:
     """Apply one editor operation to a progression.
 
     Returns the rewritten progression text, the index to keep selected, and the
@@ -631,6 +631,18 @@ def apply_chord_edit(chord_input: str, *, index: int, op: str, value: str = "", 
         starts.insert(at, starts[index] + beats[index] if index < len(starts) else 0.0)
         reflow(at)
         return result(at)
+    if op == "insert_at":
+        # Drag-drop from the palette: place a new chord at a dropped beat, then
+        # re-read the lane in time order so it still reads left to right.
+        tokens.append(value)
+        beats.append(DEFAULT_CHORD_BEATS)
+        starts.append(max(0.0, float(start or 0.0)))
+        new = len(tokens) - 1
+        order = sorted(range(len(tokens)), key=lambda item: (starts[item], item))
+        tokens[:] = [tokens[item] for item in order]
+        beats[:] = [beats[item] for item in order]
+        starts[:] = [starts[item] for item in order]
+        return result(order.index(new))
     if not tokens or not 0 <= index < len(tokens):
         return result(index)
     if op == "delete":
