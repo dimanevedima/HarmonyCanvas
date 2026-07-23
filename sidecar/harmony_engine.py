@@ -766,7 +766,7 @@ def _borrowed_symbol(tonic_pc: int, offset: int, suffix: str, flats: bool) -> st
     return (PC_FLAT if flats else PC_SHARP)[(tonic_pc + offset) % 12] + suffix
 
 
-def analyze_sketch(*, chord_input: str, tonic: str, mode: str, melody: list[dict] | None = None, selected_index: int | None = None, palette_mode: str | None = None, palette_secondary: str | None = None, chord_beats: list[float] | None = None, chord_starts: list[float] | None = None, chromatic: bool = False, meter: str = "4/4") -> dict:
+def analyze_sketch(*, chord_input: str, tonic: str, mode: str, melody: list[dict] | None = None, selected_index: int | None = None, palette_mode: str | None = None, palette_secondary: str | None = None, chord_beats: list[float] | None = None, chord_starts: list[float] | None = None, chromatic: bool = False, meter: str = "4/4", octave: int = 0) -> dict:
     mode_key = (mode or "major").lower()
     tonic_pc, intervals, flats = _mode_context(tonic, mode_key)
     chords = parse_progression(chord_input)
@@ -869,7 +869,11 @@ def analyze_sketch(*, chord_input: str, tonic: str, mode: str, melody: list[dict
 
     melody_notes = annotate_melody(normalise_melody(melody), chords, tonic_pc, intervals, flats)
     selected_tones = {midi % 12 for midi in selected_chord["midi"]} if selected_chord else set()
-    grid = melody_grid(tonic_pc, intervals, flats, chromatic=chromatic)
+    # `octave` shifts the visible register (low/mid/high) so notes can be placed
+    # outside the default G3–C6 window without a scrollable roll.
+    octave = max(-3, min(4, int(octave or 0)))
+    grid = melody_grid(tonic_pc, intervals, flats, chromatic=chromatic,
+                       low=max(0, 55 + 12 * octave), high=min(127, 84 + 12 * octave))
     for row in grid:
         row["chord_tone"] = row["pitch_class"] in selected_tones
     try:

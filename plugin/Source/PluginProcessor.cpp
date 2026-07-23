@@ -79,13 +79,27 @@ bool HarmonyCanvasProcessor::isBusesLayoutSupported (const BusesLayout& layouts)
         && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
+void HarmonyCanvasProcessor::requestHostTransport (bool play)
+{
+    hostTransportRequest.store (play ? 1 : 2, std::memory_order_relaxed);
+}
+
 void HarmonyCanvasProcessor::processBlock (juce::AudioBuffer<float>& audio,
                                             juce::MidiBuffer& midi)
 {
     audio.clear();
 
+    // The editor's Play/Stop asks the host to start/stop its transport, so the
+    // app drives playback. Only works when the host allows plug-in control.
+    if (const int request = hostTransportRequest.exchange (0, std::memory_order_relaxed))
+    {
+        if (auto* transportHead = getPlayHead())
+            if (transportHead->canControlTransport())
+                transportHead->transportPlay (request == 1);
+    }
+
     bool gotPosition = false;
-    if (const auto* playHead = getPlayHead())
+    if (auto* playHead = getPlayHead())
     {
         if (const auto position = playHead->getPosition())
         {

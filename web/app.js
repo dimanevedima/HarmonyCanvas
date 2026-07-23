@@ -4018,6 +4018,8 @@ function loadLabOutputState() {
     window.labVoiceMuteState = Object.assign({ 1: false, 2: false, 3: false, 4: false }, saved.voiceMutes || {});
     window.labOutputToDaw = !!saved.outputToDaw;
     window.labPartVolState = Object.assign({ chords: 1, v1: 1, v2: 1, v3: 1, v4: 1 }, saved.partVol || {});
+    if (saved.loop && typeof saved.loop.from === "number") window.labLoop = saved.loop;
+    if (typeof saved.octave === "number") window.labOctave = saved.octave;
   } catch {}
 }
 
@@ -4025,7 +4027,7 @@ function saveLabOutputState() {
   try {
     localStorage.setItem(labOutputStorageKey(), JSON.stringify({
       chordsMuted: !!window.labChordsMuted, voiceMutes: labVoiceMutes(), outputToDaw: !!window.labOutputToDaw,
-      partVol: labPartVolume(),
+      partVol: labPartVolume(), loop: window.labLoop || null, octave: window.labOctave || 0,
     }));
   } catch {}
 }
@@ -4227,6 +4229,7 @@ function labScoreHeadHtml(advice, timeline, selected) {
       <strong>Партитура</strong>
       <label class="lab-chromatic"><input type="checkbox" ${timeline.chromatic ? "checked" : ""} onchange="setLabChromatic(this.checked)"><span>Хроматика</span></label>
       <label class="lab-duration">Нота<select onchange="setLabNoteLength(this.value)">${LAB_NOTE_LENGTHS.map(([value, label]) => `<option value="${value}" ${(window.labNoteLength || 1) === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+      <label class="lab-duration" title="Регистр сетки: смещает видимые октавы, чтобы писать верх/низ без прокрутки">Регистр<select onchange="setLabOctave(this.value)">${LAB_REGISTERS.map(([value, label]) => `<option value="${value}" ${(window.labOctave || 0) === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
       <label class="lab-duration">Сетка<select onchange="setLabSnap(this.value)">${LAB_SNAPS.map(([value, label]) => `<option value="${value}" ${(window.labSnapBeats || 0.5) === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
       ${selected ? `<label class="lab-duration">Длина <b class="lab-truncate" title="${esc(selected.symbol)}">${esc(selected.symbol)}</b><select onchange="labEdit('duration',this.value)">${LAB_DURATIONS.map(([value, label]) => `<option value="${value}" ${selected.beats === value ? "selected" : ""}>${label} такта</option>`).join("")}</select></label>` : ""}
       ${hidden && !timeline.chromatic
@@ -4268,7 +4271,7 @@ async function labNoteEdit(op, payload = {}) {
       body: JSON.stringify({
         op, ...payload,
         selected_index: Math.max(0, Number(window.labSelectedChordIndex) || 0),
-        palette_mode: window.labPaletteMode, palette_secondary: window.labSecondary, chromatic: !!window.labChromatic,
+        palette_mode: window.labPaletteMode, palette_secondary: window.labSecondary, chromatic: !!window.labChromatic, octave: window.labOctave || 0,
       }),
     });
     if (requestId !== window.labAdviceRequestId) return;
@@ -4415,7 +4418,9 @@ function labLoopPointerDown(event) {
       track.appendChild(node);
       return node;
     })();
-    band.style.setProperty("--from", Math.min(from, to));
+    // The band lives inside this system's track, so position it system-relative
+    // (subtract the offset); otherwise it lands far off on lower systems.
+    band.style.setProperty("--from", Math.min(from, to) - labSystemOffset(track));
     band.style.setProperty("--len", Math.abs(to - from));
   };
   const onUp = () => {
@@ -4424,6 +4429,7 @@ function labLoopPointerDown(event) {
     const span = Math.abs(to - from);
     if (span < (window.labSnapBeats || 0.5)) return clearLabLoop();
     window.labLoop = { from: Math.min(from, to), to: Math.min(from, to) + span };
+    saveLabOutputState();
     labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
     syncNativePlaybackTimeline();
   };
@@ -4433,6 +4439,7 @@ function labLoopPointerDown(event) {
 
 function clearLabLoop() {
   window.labLoop = null;
+  saveLabOutputState();
   labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
   syncNativePlaybackTimeline();
 }
@@ -4865,7 +4872,16 @@ function applyLabAdvice(advice, { syncChordText = false } = {}) {
 function labPaletteQuery() {
   return `${window.labPaletteMode ? `&palette_mode=${encodeURIComponent(window.labPaletteMode)}` : ""}`
     + `${window.labSecondary ? `&palette_secondary=${encodeURIComponent(window.labSecondary)}` : ""}`
-    + `${window.labChromatic ? "&chromatic=true" : ""}`;
+    + `${window.labChromatic ? "&chromatic=true" : ""}`
+    + `${window.labOctave ? `&octave=${window.labOctave}` : ""}`;
+}
+
+const LAB_REGISTERS = [[-2, "Низкий"], [-1, "Ниже"], [0, "Средний"], [1, "Выше"], [2, "Высокий"]];
+
+async function setLabOctave(value) {
+  window.labOctave = Math.max(-3, Math.min(4, Number(value) || 0));
+  saveLabOutputState();
+  await refreshLabAdvice();
 }
 
 /** Every chord property edit goes through the server so the symbol stays derived. */
@@ -4879,7 +4895,7 @@ async function labEdit(op, value = "", index = null, { keepSelection = false } =
   if (op === "secondary") window.labSecondary = value in { V: 1, IV: 1, vii: 1 } ? value : null;
   if (op === "reset") { window.labPaletteMode = null; window.labSecondary = null; }
   try {
-    const advice = await api(`/sketches/${currentSketchId}/chord-edit`, { method: "POST", body: JSON.stringify({ index: target, op, value: String(value), palette_mode: window.labPaletteMode, palette_secondary: window.labSecondary, chromatic: !!window.labChromatic }) });
+    const advice = await api(`/sketches/${currentSketchId}/chord-edit`, { method: "POST", body: JSON.stringify({ index: target, op, value: String(value), palette_mode: window.labPaletteMode, palette_secondary: window.labSecondary, chromatic: !!window.labChromatic, octave: window.labOctave || 0 }) });
     if (requestId !== window.labAdviceRequestId) return;
     if (!keepSelection) window.labSelectedChordIndex = advice.selected_index < 0 ? null : advice.selected_index;
     applyLabAdvice(advice, { syncChordText: true });
@@ -5134,10 +5150,15 @@ function syncLabDawPlayback(state = {}) {
 
 /** Play harmony and melody together on the score's own timeline. */
 function labPlayScore(button, options = {}) {
-  // Inside the plug-in the app never previews audio itself — playback is the
-  // DAW rendering the timeline. Only a genuine DAW-driven call (options.daw)
-  // moves the on-screen playhead.
-  if (typeof window.harmonyCanvasSetPlaybackTimeline === "function" && !options.daw) return;
+  // Inside the plug-in the app makes no sound itself: Play/Stop drive the host
+  // transport (the DAW renders the timeline). Only a genuine DAW-driven call
+  // (options.daw) falls through to move the on-screen playhead.
+  if (typeof window.harmonyCanvasSetPlaybackTimeline === "function" && !options.daw) {
+    window.labAppPlaying = !window.labAppPlaying;
+    if (typeof window.harmonyCanvasTransport === "function") window.harmonyCanvasTransport(window.labAppPlaying);
+    document.querySelectorAll(".lab-tool-play").forEach(b => b.classList.toggle("is-playing", window.labAppPlaying));
+    return;
+  }
   // "Звук из Ableton" mode: Play/Stop drive Ableton's transport via the M4L
   // player; the app makes no sound of its own.
   if (window.labOutputToDaw && !options.daw) {
@@ -5192,7 +5213,10 @@ function labPlayScore(button, options = {}) {
 }
 
 function labStopScore(button = null) {
-  if (window.labOutputToDaw) labSetAppTransport(false);
+  if (typeof window.harmonyCanvasTransport === "function") {
+    window.labAppPlaying = false;
+    window.harmonyCanvasTransport(false);
+  }
   ptmAudio.stopAll();
   document.querySelectorAll(".lab-playhead").forEach(head => { head.hidden = true; head.style.setProperty("--pos", 0); });
   document.querySelectorAll(".lab-tool-play.is-playing").forEach(item => item.classList.remove("is-playing"));

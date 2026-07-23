@@ -56,6 +56,7 @@ public:
 
     void enqueuePreviewMessage (const juce::MidiMessage& message);
     void setPlaybackTimeline (std::vector<PlaybackEvent> events, double lengthBeats);
+    void requestHostTransport (bool play);
     TransportSnapshot getTransportSnapshot() const noexcept;
     juce::String getInstanceId() const;
     void markSidecarUsed();
@@ -91,5 +92,6 @@ private:
     std::atomic<int> hostMeterDenominator { 4 };
     std::atomic<bool> hostPlaying { false };
     std::atomic<bool> hostTransportAvailable { false };
+    std::atomic<int> hostTransportRequest { 0 };
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HarmonyCanvasProcessor)
 };

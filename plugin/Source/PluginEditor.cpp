@@ -12,6 +12,7 @@ constexpr auto bridgeScript = R"JS(
   const backend = () => window.__JUCE__ && window.__JUCE__.backend;
   const send = (eventId, payload) => backend()?.emitEvent(eventId, payload);
   window.harmonyCanvasSetPlaybackTimeline = payload => send('setPlaybackTimeline', payload);
+  window.harmonyCanvasTransport = playing => send('hostTransport', { playing: !!playing });
   const timers = new Set();
   let playing = false;
 
@@ -157,6 +158,12 @@ juce::WebBrowserComponent::Options HarmonyCanvasEditor::makeBrowserOptions (Harm
         processor.enqueuePreviewMessage (juce::MidiMessage::allNotesOff (1));
     });
 
+    options = options.withEventListener ("hostTransport", [&processor] (const juce::var& payload) {
+        const auto* object = payload.getDynamicObject();
+        if (object == nullptr) return;
+        processor.requestHostTransport (static_cast<bool> (object->getProperty ("playing")));
+    });
+
     options = options.withEventListener ("setPlaybackTimeline", [&processor] (const juce::var& payload) {
         const auto* object = payload.getDynamicObject();
         if (object == nullptr) return;
@@ -299,6 +306,17 @@ void HarmonyCanvasEditor::timerCallback()
             startTimer (1000);
         }
         return;
+    }
+
+    // The WebView can render the first frame before the editor reaches its host
+    // size, leaving the page clipped until a manual resize. Nudge the layout a
+    // few times right after load so it settles on its own.
+    if (layoutNudge < 4)
+    {
+        ++layoutNudge;
+        const auto bounds = getLocalBounds();
+        browser.setBounds (bounds.withTrimmedBottom (1));
+        browser.setBounds (bounds);
     }
 
     const auto transport = processor.getTransportSnapshot();

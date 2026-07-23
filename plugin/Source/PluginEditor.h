@@ -24,6 +24,7 @@ private:
     juce::ChildProcess sidecarProcess;
     int startupAttempts = 0;
     bool labPageRequested = false;
+    int layoutNudge = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (HarmonyCanvasEditor)
 };

@@ -230,6 +230,10 @@ def build_advice(sketch: dict, query: dict[str, list[str]]) -> dict:
     selected_raw = query.get("selected_index", [None])[0]
     selected = int(selected_raw) if selected_raw not in (None, "") else None
     chromatic = query.get("chromatic", ["false"])[0].lower() in {"1", "true", "yes"}
+    try:
+        octave = int(query.get("octave", ["0"])[0])
+    except (TypeError, ValueError):
+        octave = 0
     result = analyze_sketch(
         chord_input=sketch.get("chord_input", ""),
         tonic=sketch.get("tonic", "C"),
@@ -242,6 +246,7 @@ def build_advice(sketch: dict, query: dict[str, list[str]]) -> dict:
         chord_starts=sketch.get("chord_starts", []),
         chromatic=chromatic,
         meter=sketch.get("meter", "4/4"),
+        octave=octave,
     )
     result["chord_input"] = sketch.get("chord_input", "")
     result["midi_files"] = []
@@ -409,6 +414,7 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
                     "palette_mode": [str(payload.get("palette_mode") or "")],
                     "palette_secondary": [str(payload.get("palette_secondary") or "")],
                     "chromatic": [str(bool(payload.get("chromatic", False))).lower()],
+                    "octave": [str(int(payload.get("octave", 0) or 0))],
                 }
                 self.send_json(build_advice(updated, query))
                 return
@@ -428,6 +434,7 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
                     "palette_mode": [str(payload.get("palette_mode") or "")],
                     "palette_secondary": [str(payload.get("palette_secondary") or "")],
                     "chromatic": [str(bool(payload.get("chromatic", False))).lower()],
+                    "octave": [str(int(payload.get("octave", 0) or 0))],
                 }
                 result = build_advice(updated, query)
                 result["selected_note"] = selected_note
