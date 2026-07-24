@@ -465,15 +465,27 @@ def _color_modifiers(chord: dict) -> tuple[int, int, int, list[str]]:
         add(-1, 1, 1, "полууменьшённо")
     if re.search(r"(?<![0-9])6", q) or "add6" in q:
         add(1, 0, 1, "тепло, джаз (6)")
-    if "add9" in q or "add2" in q:
-        add(-1, 0, 1, "мечтательно (add9)")
-    if re.search(r"(?<![b#])(9|11|13)", q) and "maj" not in q and "add" not in q:
-        add(0, 0, 1, "красочно")
+    # Highest NATURAL upper tension carries its own PTM character
+    # (step_characteristics §3.2) — 9/11/13 are no longer a flat "красочно".
+    if re.search(r"(?<![b#])13", q):
+        add(1, 0, 1, "тепло, ностальгия (13)")
+    elif re.search(r"(?<![b#])11", q):
+        add(0, 1, 1, "открыто, подвешенно (11)")
+    elif re.search(r"(?<![b#])9", q):
+        add(0, 0, 1, "воздушно, мечтательно (9)")
+    # Altered tensions — each its own colour
     if "#11" in q:
         add(1, 1, 2, "лидийский блеск (#11)")
-    for alt, word in (("b9", "напряжённо (b9)"), ("#9", "напряжённо (#9)"), ("b13", "темно (b13)"), ("#5", "парящее (#5)"), ("b5", "неустойчиво (b5)")):
+    for alt, dv, dt, dc, word in (
+        ("b9", -1, 2, 1, "напряжённо (b9)"),
+        ("#9", -1, 2, 1, "остро, блюзово (#9)"),
+        ("b11", -1, 2, 1, "диссонанс (b11)"),
+        ("b13", -1, 1, 1, "тёмная краска (b13)"),
+        ("#5", 0, 1, 2, "парящее (#5)"),
+        ("b5", -1, 1, 1, "неустойчиво (b5)"),
+    ):
         if alt in q:
-            add(-1, 2, 1, word)
+            add(dv, dt, dc, word)
     return v, t, c, notes
 
 
