@@ -4259,6 +4259,10 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
   const loopBand = loop && to > from
     ? `<i class="lab-loop" style="--from:${from - offset};--len:${to - from}" title="Луп ${loop.from}–${loop.to} доли"><b onpointerdown="event.stopPropagation();clearLabLoop()" title="Убрать луп">×</b></i>`
     : "";
+  const caret = window.labChordCaret;
+  const caretMark = caret != null && caret >= offset && caret < offset + span
+    ? `<i class="lab-chord-caret" style="--at:${caret - offset}" title="Сюда вставится Ctrl+V (клик по пустому месту переносит метку)"><b onpointerdown="event.stopPropagation();clearLabChordCaret()" title="Убрать метку">×</b></i>`
+    : "";
 
   return `<div class="lab-score lab-system" data-offset="${offset}" style="--beats:${span};--bar:${beatsPerBar};--beat:${labBeatWidth()}px;--snap:${window.labSnapBeats || 0.5}">
       <div class="lab-score-inner">
@@ -4266,7 +4270,7 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
         <i class="lab-marquee" data-marquee="${systemIndex}" hidden></i>
         <div class="lab-ruler"><span class="lab-row-label">луп</span><span class="lab-row-track" onpointerdown="labLoopPointerDown(event)" title="Протяните по линейке, чтобы задать луп">${bars}${loopBand}</span></div>
         <div class="lab-rows">${rows || `<p class="field-hint">Сетка появится после выбора лада</p>`}</div>
-        <div class="lab-lane-row"><span class="lab-row-label">Гармония</span><span class="lab-row-track" onpointerdown="labLaneBackgroundDown(event)" ondblclick="labLaneDblClick(event)" title="Двойной клик — палитра аккордов">${lane}</span></div>
+        <div class="lab-lane-row"><span class="lab-row-label">Гармония</span><span class="lab-row-track" onpointerdown="labLaneBackgroundDown(event)" ondblclick="labLaneDblClick(event)" title="Двойной клик — палитра аккордов">${lane}${caretMark}</span></div>
       </div>
     </div>`;
 }
@@ -4770,7 +4774,13 @@ function labChordPointerDown(event, index) {
 function labLaneBackgroundDown(event) {
   setLabContextMode("chord");
   if (event.target.closest(".lab-lane-chord")) return;
+  // A click on empty lane drops a paste caret at that beat: Ctrl+V lands here.
+  window.labChordCaret = labSnap(labTrackBeats(event.currentTarget, event.clientX));
   deselectLabChord(event);
+}
+function clearLabChordCaret() {
+  window.labChordCaret = null;
+  labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
 }
 
 /** Drag across the ruler to mark a loop; playback then repeats that span. */
@@ -5559,37 +5569,57 @@ async function labPaste() {
   return labPasteChords();
 }
 
-/** Paste notes tiled just after the copied block; repeat to keep duplicating. */
+/** Paste notes tiled just after the copied block; the pasted notes are left
+ *  selected so they can be dragged straight away. Repeat to keep duplicating. */
 async function labPasteNotes() {
   const clip = window.labClip; const advice = window.currentLabAdvice;
   if (!clip?.notes?.length) return;
   const base = clip.origStart + clip.span * (clip.pasteN + 1);
   const existing = (advice?.melody || []).map(n => ({ pitch: n.pitch, start: n.start, duration: n.duration, voice: n.voice }));
   const pasted = clip.notes.map(n => ({ pitch: n.pitch, start: +(base + n.start).toFixed(3), duration: n.duration, voice: n.voice || 1 }));
+  const key = n => `${n.pitch}:${Number(n.start).toFixed(2)}:${Number(n.duration).toFixed(2)}:${n.voice || 1}`;
+  const pastedKeys = new Set(pasted.map(key));
   labPushHistory();
   try {
     await api(`/sketches/${currentSketchId}`, { method: "PATCH", body: JSON.stringify({ melody: existing.concat(pasted) }) });
     clip.pasteN += 1;
     await refreshLabAdvice();
-    toast(`Вставлено нот: ${pasted.length}`);
+    const mel = window.currentLabAdvice?.melody || [];
+    window.labSelectedNotes = mel.map((n, i) => [n, i]).filter(([n]) => pastedKeys.has(key(n))).map(([, i]) => i);
+    window.labSelectedNote = window.labSelectedNotes.length === 1 ? window.labSelectedNotes[0] : null;
+    window.labInspector = "note";
+    labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
+    labSetRegion("lab-chord-inspector", labInspectorHtml(window.currentLabAdvice));
+    toast(`Вставлено нот: ${pasted.length} (выделены)`);
   } catch (error) { toast(error.message); }
 }
 
-/** Paste chords appended at the end, keeping each chord's own length. */
+/** Paste chords keeping each chord's length. With a caret on the harmony lane
+ *  they land there and everything after shifts to make room; otherwise appended
+ *  at the end. */
 async function labPasteChords() {
   const clip = window.labClip; const advice = window.currentLabAdvice;
   if (!clip?.chords?.length) return;
   const chords = advice?.chords || [];
-  const tokens = chords.map(c => c.symbol);
-  const beats = chords.map(c => c.beats);
-  const starts = chords.map(c => c.start);
-  let cursor = chords.length ? Math.max(...chords.map(c => c.start + c.beats)) : 0;
-  for (const c of clip.chords) { tokens.push(c.symbol); beats.push(c.beats); starts.push(cursor); cursor += c.beats; }
+  const span = clip.chords.reduce((sum, c) => sum + c.beats, 0);
+  const caret = window.labChordCaret;
+  let combined;
+  if (caret != null) {
+    combined = chords.map(c => ({ symbol: c.symbol, beats: c.beats, start: c.start >= caret - 1e-6 ? c.start + span : c.start }));
+    let cursor = caret;
+    for (const c of clip.chords) { combined.push({ symbol: c.symbol, beats: c.beats, start: cursor }); cursor += c.beats; }
+    combined.sort((a, b) => a.start - b.start);
+    window.labChordCaret = +(caret + span).toFixed(3);
+  } else {
+    let cursor = chords.length ? Math.max(...chords.map(c => c.start + c.beats)) : 0;
+    combined = chords.map(c => ({ symbol: c.symbol, beats: c.beats, start: c.start }));
+    for (const c of clip.chords) { combined.push({ symbol: c.symbol, beats: c.beats, start: cursor }); cursor += c.beats; }
+  }
   labPushHistory();
   try {
-    await api(`/sketches/${currentSketchId}`, { method: "PATCH", body: JSON.stringify({ chord_input: tokens.join(" "), chord_beats: beats, chord_starts: starts }) });
+    await api(`/sketches/${currentSketchId}`, { method: "PATCH", body: JSON.stringify({ chord_input: combined.map(c => c.symbol).join(" "), chord_beats: combined.map(c => c.beats), chord_starts: combined.map(c => c.start) }) });
     await refreshLabAdvice();
-    toast(`Вставлено аккордов: ${clip.chords.length}`);
+    toast(`Вставлено аккордов: ${clip.chords.length}${caret != null ? " в позицию метки" : " в конец"}`);
   } catch (error) { toast(error.message); }
 }
 
