@@ -756,8 +756,18 @@ to { transform: none; opacity: 1; }
   color-mix(in srgb, var(--deg) 24%, white) 0 6px, color-mix(in srgb, var(--deg) 7%, white) 6px 12px); }
 /* Loop band in the ruler, and the marquee used to rubber-band notes. */
 .lab-ruler .lab-row-track { cursor: crosshair; }
-.lab-loop { position: absolute; top: 0; height: 20px; left: calc(var(--from) * var(--beat)); width: calc(var(--len) * var(--beat)); background: color-mix(in srgb, var(--acid) 55%, transparent); border-left: 2px solid #8a9c1f; border-right: 2px solid #8a9c1f; z-index: 2; }
-.lab-loop b { position: absolute; right: 1px; top: 0; padding: 0 3px; cursor: pointer; font-size: 10px; color: #5f6b15; }
+/* Hookpad-style loop bar: click the body to toggle on/off, drag either edge
+ * grip to stretch or narrow it. Off keeps the same region (so a click always
+ * re-enables the same span) but reads as hollow/outlined instead of filled. */
+.lab-loop { position: absolute; top: 0; height: 20px; left: calc(var(--from) * var(--beat)); width: calc(var(--len) * var(--beat)); background: color-mix(in srgb, var(--acid) 55%, transparent); border-left: 2px solid #8a9c1f; border-right: 2px solid #8a9c1f; z-index: 2; cursor: pointer; }
+.lab-loop.is-off { background: color-mix(in srgb, var(--acid) 14%, transparent); border-left-style: dashed; border-right-style: dashed; border-left-color: #a9b06a; border-right-color: #a9b06a; }
+.lab-loop-clear { position: absolute; right: 1px; top: 0; padding: 0 3px; cursor: pointer; font-size: 10px; color: #5f6b15; }
+.lab-loop.is-off .lab-loop-clear { color: #8a8e5f; }
+.lab-loop-grip { position: absolute; top: 0; bottom: 0; width: 8px; cursor: ew-resize; background: color-mix(in srgb, #8a9c1f 30%, transparent); }
+.lab-loop-grip-left { left: 0; border-radius: 6px 0 0 6px; }
+.lab-loop-grip-right { right: 0; border-radius: 0 6px 6px 0; }
+.lab-loop-grip::after { content: ""; position: absolute; left: 50%; top: 50%; width: 3px; height: 10px; transform: translate(-50%, -50%); border-left: 1px solid #5f6b15; border-right: 1px solid #5f6b15; opacity: .75; }
+.lab-loop:hover .lab-loop-grip { background: color-mix(in srgb, #8a9c1f 55%, transparent); }
 .lab-marquee { position: absolute; z-index: 7; pointer-events: none; border: 1px solid var(--purple); background: color-mix(in srgb, var(--purple) 12%, transparent); }
 .lab-hidden-warning { border: 1px solid #e0c58a; border-radius: 8px; background: #fdf6e6; color: #8a6414; cursor: pointer; font: inherit; font-size: 11px; padding: 4px 9px; }
 /* ── Timeline refinements ────────────────────────────────────────────────── */

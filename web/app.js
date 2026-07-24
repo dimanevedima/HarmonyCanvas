@@ -869,8 +869,13 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
   const loop = window.labLoop;
   const from = loop ? Math.max(loop.from, offset) : 0;
   const to = loop ? Math.min(loop.to, offset + span) : 0;
+  const loopOff = loop?.enabled === false;
   const loopBand = loop && to > from
-    ? `<i class="lab-loop" style="--from:${from - offset};--len:${to - from}" title="Луп ${loop.from}–${loop.to} доли"><b onpointerdown="event.stopPropagation();clearLabLoop()" title="Убрать луп">×</b></i>`
+    ? `<i class="lab-loop ${loopOff ? "is-off" : ""}" style="--from:${from - offset};--len:${to - from}" onpointerdown="labLoopBandPointerDown(event)" title="Луп ${loop.from}–${loop.to} доли · клик — ${loopOff ? "включить" : "выключить"}">
+        <b class="lab-loop-grip lab-loop-grip-left"></b>
+        <b class="lab-loop-clear" onpointerdown="event.stopPropagation();clearLabLoop()" title="Убрать луп">×</b>
+        <b class="lab-loop-grip lab-loop-grip-right"></b>
+      </i>`
     : "";
   const caret = window.labChordCaret;
   const caretMark = caret != null && caret >= offset && caret < offset + span
@@ -1396,9 +1401,11 @@ function clearLabChordCaret() {
   labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
 }
 
-/** Drag across the ruler to mark a loop; playback then repeats that span. */
+/** Drag across empty ruler space to mark a new loop; playback then repeats
+ *  that span. A pointerdown that starts on the loop band itself never reaches
+ *  here — labLoopBandPointerDown claims it (Hookpad-style: click the existing
+ *  band to toggle it, drag its own edges to resize). */
 function labLoopPointerDown(event) {
-  if (event.target.closest(".lab-loop b")) return;
   event.preventDefault();
   const track = event.currentTarget;
   const from = labSnap(labTrackBeats(track, event.clientX));
@@ -1408,7 +1415,7 @@ function labLoopPointerDown(event) {
     const band = document.querySelector(".lab-loop") || (() => {
       const node = document.createElement("i");
       node.className = "lab-loop";
-      node.innerHTML = `<b onpointerdown="event.stopPropagation();clearLabLoop()" title="Убрать луп">×</b>`;
+      node.innerHTML = `<b class="lab-loop-clear" onpointerdown="event.stopPropagation();clearLabLoop()" title="Убрать луп">×</b>`;
       track.appendChild(node);
       return node;
     })();
@@ -1422,7 +1429,55 @@ function labLoopPointerDown(event) {
     window.removeEventListener("pointerup", onUp);
     const span = Math.abs(to - from);
     if (span < (window.labSnapBeats || 0.5)) return clearLabLoop();
-    window.labLoop = { from: Math.min(from, to), to: Math.min(from, to) + span };
+    window.labLoop = { from: Math.min(from, to), to: Math.min(from, to) + span, enabled: true };
+    saveLabOutputState();
+    labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
+    syncNativePlaybackTimeline();
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+}
+
+/** The existing loop band: a plain click toggles it on/off (bounds stay
+ *  remembered either way — playback just stops honouring them while off), and
+ *  either edge grip stretches or narrows that side. No move-by-dragging-the-
+ *  middle, matching what was asked for — Hookpad doesn't have that either. */
+function labLoopBandPointerDown(event) {
+  event.stopPropagation();
+  event.preventDefault();
+  const loop = window.labLoop;
+  if (!loop) return;
+  const resizeRight = !!event.target.closest(".lab-loop-grip-right");
+  const resizeLeft = !!event.target.closest(".lab-loop-grip-left");
+  if (!resizeRight && !resizeLeft) {
+    window.labLoop = { ...loop, enabled: loop.enabled === false };
+    saveLabOutputState();
+    labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
+    syncNativePlaybackTimeline();
+    return;
+  }
+  const element = event.currentTarget;
+  const beatPx = labBeatPx();
+  const originX = event.clientX;
+  const minSpan = window.labSnapBeats || 0.5;
+  const offset = labSystemOffset(element);
+  let nextFrom = loop.from;
+  let nextTo = loop.to;
+  const onMove = pointer => {
+    const dBeats = (pointer.clientX - originX) / beatPx;
+    if (resizeRight) {
+      nextTo = Math.max(loop.from + minSpan, labSnap(loop.to + dBeats));
+      element.style.setProperty("--len", nextTo - loop.from);
+    } else {
+      nextFrom = Math.max(0, Math.min(labSnap(loop.from + dBeats), loop.to - minSpan));
+      element.style.setProperty("--from", nextFrom - offset);
+      element.style.setProperty("--len", loop.to - nextFrom);
+    }
+  };
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.labLoop = { from: nextFrom, to: nextTo, enabled: loop.enabled !== false };
     saveLabOutputState();
     labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
     syncNativePlaybackTimeline();
@@ -1436,6 +1491,14 @@ function clearLabLoop() {
   saveLabOutputState();
   labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
   syncNativePlaybackTimeline();
+}
+
+/** The loop only affects playback while switched on; a disabled loop still
+ *  remembers its bounds (rendered dimmed) so a click re-enables the same
+ *  region instead of forcing the user to redraw it. */
+function labActiveLoop() {
+  const loop = window.labLoop;
+  return loop && loop.enabled !== false ? loop : null;
 }
 
 /** Drag over empty grid space to rubber-band a group of notes. */
@@ -2416,7 +2479,7 @@ function labPlay(midis, button = null) {
  * DAW-synchronised playback, so replacing this snapshot never stops transport. */
 function syncNativePlaybackTimeline(advice = window.currentLabAdvice) {
   if (typeof window.harmonyCanvasSetPlaybackTimeline !== "function" || !advice) return;
-  const loop = window.labLoop;
+  const loop = labActiveLoop();
   const scoreEnd = Math.max(
     1,
     ...(advice.chords || []).map(chord => Number(chord.start) + Number(chord.beats)),
@@ -2455,7 +2518,7 @@ function syncLabDawPlayback(state = {}) {
   if (!document.getElementById("lab-score") || !window.currentLabAdvice) return;
   const isPlaying = !!state.playing;
   const advice = window.currentLabAdvice;
-  const loop = window.labLoop;
+  const loop = labActiveLoop();
   const scoreEnd = Math.max(1,
     ...(advice.chords || []).map(chord => chord.start + chord.beats),
     ...(advice.melody || []).map(note => note.start + note.duration));
@@ -2503,7 +2566,7 @@ function labPlayScore(button, options = {}) {
   const advice = window.currentLabAdvice;
   if (!advice?.chords?.length && !advice?.melody?.length) return toast("Сначала введите аккорды или ноты");
   const beatSec = 60 / (Number(document.getElementById("lab-bpm")?.value) || 120);
-  const loop = window.labLoop;
+  const loop = labActiveLoop();
   const scoreEnd = Math.max(
     1,
     ...(advice.chords || []).map(chord => chord.start + chord.beats),
