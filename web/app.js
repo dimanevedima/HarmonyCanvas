@@ -4416,28 +4416,28 @@ function setLabPairActive(side) { if (window.labPair) { window.labPair.active = 
 function setLabPairRoot(root, minor) {
   const p = window.labPair; if (!p) return;
   p[p.active] = minor ? root + "m" : root;
-  applyLabPair(p.active);
+  applyLabPair(p.active, true);
 }
 function setLabPairQual(qual) {
   const p = window.labPair; if (!p) return;
   p[p.active] = pairSplit(p[p.active]).root + qual;
   p[p.active + "Mode"] = ""; p[p.active + "Src"] = "own"; // a manual quality overrides any fit
-  applyLabPair(p.active);
+  applyLabPair(p.active, true);
 }
 function setLabPairMode(mode) {
   const p = window.labPair; if (!p) return;
   p[p.active + "Mode"] = mode;
-  applyLabPair(p.active);
+  applyLabPair(p.active, true);
 }
 function setLabPairLevel(level) {
   const p = window.labPair; if (!p) return;
   p[p.active + "Level"] = level;
-  applyLabPair(p.active);
+  applyLabPair(p.active, true);
 }
 function setLabPairSource(src) {
   const p = window.labPair; if (!p) return;
   p[p.active + "Src"] = src;
-  applyLabPair(p.active);
+  applyLabPair(p.active, true);
 }
 
 /** Recompute one chord from its mode-fit settings: from its own root (chord-
@@ -4460,22 +4460,25 @@ async function applyLabPairSide(side) {
 
 /** Apply the changed side, then reactively refit the partner if it reads inside
  *  this side's key, and refresh the mood. */
-async function applyLabPair(changed) {
+async function applyLabPair(changed, audition = false) {
   try {
     await applyLabPairSide(changed);
     const other = changed === "a" ? "b" : "a";
     if ((window.labPair || {})[other + "Src"] === "partner") await applyLabPairSide(other);
-    if (window.labPair) { labRenderPairDial(); refreshLabPair(); }
+    if (window.labPair) { labRenderPairDial(); refreshLabPair(audition); }
   } catch (error) { toast(error.message); }
 }
 
-async function refreshLabPair() {
+async function refreshLabPair(audition = false) {
   const p = window.labPair; if (!p) return;
   try {
     const res = await api("/pair-mood", { method: "POST", body: JSON.stringify({ a: p.a, b: p.b }) });
     if (!window.labPair) return;
     p.mood = res.mood; p.aMidi = res.a?.midi || []; p.bMidi = res.b?.midi || [];
     labRenderPairMood();
+    // Auditioning a single pick plays just that chord; the pair only plays on
+    // the explicit "Сыграть пару" button.
+    if (audition) { const midi = p[p.active + "Midi"]; if (midi && midi.length) labPlay([midi]); }
   } catch (error) { toast(error.message); }
 }
 
