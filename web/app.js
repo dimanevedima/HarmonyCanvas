@@ -4382,7 +4382,8 @@ function openLabPairDial(index) {
   if (!chord) return;
   const next = (advice.chords || [])[index + 1];
   const bSym = next ? next.symbol : PAIR_FLAT[(chord.chroma != null ? (PAIR_PC[pairSplit(chord.symbol).root] + 7) % 12 : 7)]; // default B = a fifth up
-  window.labPair = { index, active: "b", a: chord.symbol, b: bSym, mood: null, aMidi: [], bMidi: [] };
+  // Keep the originals so "Сбросить" can restore what was double-clicked.
+  window.labPair = { index, active: "b", a: chord.symbol, b: bSym, a0: chord.symbol, b0: bSym, mood: null, aMidi: [], bMidi: [] };
   let host = document.getElementById("lab-pair-dial");
   if (!host) { host = document.createElement("div"); host.id = "lab-pair-dial"; document.body.appendChild(host); }
   host.hidden = false;
@@ -4395,6 +4396,12 @@ function closeLabPairDial() {
   const host = document.getElementById("lab-pair-dial");
   if (host) host.hidden = true;
   window.labPair = null;
+}
+
+function resetLabPair() {
+  const p = window.labPair; if (!p) return;
+  p.a = p.a0; p.b = p.b0; p.active = "b";
+  labRenderPairDial(); refreshLabPair();
 }
 
 function setLabPairActive(side) { if (window.labPair) { window.labPair.active = side; labRenderPairDial(); } }
@@ -4438,18 +4445,28 @@ function labPairWheelHtml() {
   const aRoot = pairSplit(p.a); const bRoot = pairSplit(p.b);
   const aPc = PAIR_PC[aRoot.root]; const bPc = PAIR_PC[bRoot.root];
   const isMin = q => q.startsWith("m") && !q.startsWith("maj");
-  const aMaj = q => !isMin(q); // treat dim/aug/sus as sitting on the major seat
+  const aMaj = q => !isMin(q); // dim/aug/sus sit on the major seat
+  // Fifths seat of a chord (minor borrows its relative major's seat), then the
+  // wheel is rotated so chord A always sits at 12 o'clock — the hour hand.
+  const seat = (root, qual) => PAIR_FIFTHS.findIndex(m => PAIR_PC[m] === (isMin(qual) ? (PAIR_PC[root] + 3) % 12 : PAIR_PC[root]));
+  const aIdx = seat(aRoot.root, aRoot.qual);
+  const bIdx = seat(bRoot.root, bRoot.qual);
   const cells = PAIR_FIFTHS.map((maj, i) => {
     const rel = pairRelMinor(maj);
     const majPc = PAIR_PC[maj]; const minPc = PAIR_PC[rel.slice(0, -1)];
     const majA = aPc === majPc && aMaj(aRoot.qual), minA = aPc === minPc && isMin(aRoot.qual);
     const majB = bPc === majPc && aMaj(bRoot.qual), minB = bPc === minPc && isMin(bRoot.qual);
-    return `<div class="lab-pair-cell" style="--angle:${i * 30}deg;--counter:${-i * 30}deg">
+    const angle = ((i - aIdx) * 30 + 360) % 360;
+    return `<div class="lab-pair-cell" style="--angle:${angle}deg;--counter:${-angle}deg">
       <button type="button" class="lab-pair-maj ${majA ? "is-a" : ""} ${majB ? "is-b" : ""}" onclick="setLabPairRoot('${maj}',false)">${maj}</button>
       <button type="button" class="lab-pair-min ${minA ? "is-a" : ""} ${minB ? "is-b" : ""}" onclick="setLabPairRoot('${rel.slice(0, -1)}',true)">${rel}</button>
     </div>`;
   }).join("");
-  return `<div class="lab-pair-wheel">${cells}<div class="lab-pair-center"><b id="lab-pair-clock">—</b><small>А → B</small></div></div>`;
+  const handAngle = ((bIdx - aIdx) * 30 + 360) % 360;
+  const hands = aIdx >= 0 && bIdx >= 0
+    ? `<i class="lab-pair-hour"></i><i class="lab-pair-minute" style="--hand:${handAngle}deg"></i>`
+    : "";
+  return `<div class="lab-pair-wheel">${hands}${cells}<div class="lab-pair-center"><b id="lab-pair-clock">—</b><small>A → B</small></div></div>`;
 }
 
 function labChordChipRow(side) {
@@ -4477,6 +4494,7 @@ function labRenderPairDial() {
           <div class="lab-pair-actions">
             <button type="button" class="lab-tool-btn" onclick="playLabPair()">▶ Сыграть пару</button>
             <button type="button" class="lab-tool-btn lab-pair-insert" onclick="insertLabPairAfter()">Вставить B после A</button>
+            <button type="button" class="lab-tool-btn" onclick="resetLabPair()" title="Вернуть исходные аккорды (A: ${esc(p.a0)}, B: ${esc(p.b0)})">↺ Сбросить</button>
           </div>
         </div>
       </div>

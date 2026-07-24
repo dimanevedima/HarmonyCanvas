@@ -1509,9 +1509,16 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 
 .lab-pair-wheel { position: relative; width: 340px; height: 340px; margin: 0 auto; border-radius: 50%;
   background: radial-gradient(circle at center, var(--card) 0 24%, transparent 25%), color-mix(in srgb, var(--ink) 4%, var(--card)); border: 1px solid var(--line); }
-.lab-pair-cell { position: absolute; inset: 0; }
-.lab-pair-maj, .lab-pair-min { position: absolute; border: 1px solid transparent; border-radius: 9px; cursor: pointer;
+/* Cells fill the wheel only to host the CSS vars; they must not eat clicks —
+   otherwise the topmost transparent cell swallows every press but its own. */
+.lab-pair-cell { position: absolute; inset: 0; pointer-events: none; }
+.lab-pair-maj, .lab-pair-min { position: absolute; pointer-events: auto; border: 1px solid transparent; border-radius: 9px; cursor: pointer;
   background: transparent; color: var(--ink); font-weight: 800; line-height: 1; display: grid; place-items: center; }
+/* Clock hands: A is the fixed hour hand at 12; B is the minute hand. */
+.lab-pair-hour, .lab-pair-minute { position: absolute; left: 50%; bottom: 50%; transform-origin: bottom center; border-radius: 3px; }
+.lab-pair-hour { width: 4px; height: 92px; margin-left: -2px; background: var(--ink); }
+.lab-pair-minute { width: 4px; height: 120px; margin-left: -2px; background: var(--purple); transform: rotate(var(--hand)); transition: transform .18s ease; }
+.lab-pair-minute::after { content: ""; position: absolute; left: 50%; top: -5px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--purple); }
 .lab-pair-maj { left: calc(50% - 24px); top: calc(50% - 15px); width: 48px; height: 30px; font-size: 14px;
   transform: rotate(var(--angle)) translateY(-140px) rotate(var(--counter)); }
 .lab-pair-min { left: calc(50% - 22px); top: calc(50% - 13px); width: 44px; height: 26px; font-size: 11px; color: var(--muted);
