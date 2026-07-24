@@ -1065,14 +1065,14 @@ def analyze_sketch(*, chord_input: str, tonic: str, mode: str, melody: list[dict
             if not left or not right:
                 continue
             transition = ptm_analysis.analyze_transition(left, right)
-            pair = transition.get("pair")
             transitions.append(transition)
-            if pair:
-                key = str(pair["category"])
-                item = dial_colors.setdefault(key, {"category": pair["category"], "name": pair["category_name"], "count": 0, "moods": []})
+            mood = transition.get("mood")
+            if mood and mood.get("category"):
+                key = str(mood["category"])
+                item = dial_colors.setdefault(key, {"category": mood["category"], "name": mood["category_name"], "count": 0, "moods": []})
                 item["count"] += 1
-                if pair["mood"] not in item["moods"]:
-                    item["moods"].append(pair["mood"])
+                if mood["mood"] not in item["moods"]:
+                    item["moods"].append(mood["mood"])
     except Exception:
         # The Lab stays usable when an optional knowledge provider is unavailable.
         catalog_matches = []

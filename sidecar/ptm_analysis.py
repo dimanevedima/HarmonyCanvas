@@ -65,7 +65,7 @@ TRIAD_PCS = {
 
 def _split_quality(rest: str) -> tuple[str, bool] | None:
     """Quality string (already compact, no root) -> (triad family, has extensions)."""
-    r = rest.strip()
+    r = rest.strip().replace("(", "").replace(")", "")
     if r == "":
         return "maj", False
     if r.startswith("maj"):
@@ -88,6 +88,9 @@ def _split_quality(rest: str) -> tuple[str, bool] | None:
         # dominant 7ths, add-chords, 6ths, 9ths… — major triad + color
         if "sus" in r:
             return ("sus2" if "sus2" in r else "sus4"), True
+        return "maj", True
+    if re.match(r"^[b#](5|9|11|13)", r):
+        # a bare major triad carrying only an altered tone, e.g. C(b5), C(#5)
         return "maj", True
     return None
 
@@ -423,6 +426,164 @@ def function_of(chord: dict, tonic_pc: int, mode: str) -> str | None:
 
 PAIRABLE = {"maj": "maj", "min": "min", "sus2": "maj", "sus4": "maj", "power": "maj"}
 
+
+# ── Mood model (docs/MOOD_MODEL_SPEC.md) ──────────────────────────────────
+# Affect vectors are (valence, tension, color): dark↔bright, stable↔tense,
+# plain↔exotic. The authored 46-pair table stays ground truth for maj/min pairs;
+# vectors extend the model to dim/aug, same-root colour moves and extensions.
+
+_TRIAD_VEC = {
+    "maj": (2, -1, 0), "min": (-2, -1, 0), "dim": (-1, 2, 0), "aug": (0, 2, 2),
+    "sus2": (0, 0, 1), "sus4": (0, 1, 0), "power": (0, 0, 0),
+}
+_CATEGORY_CENTROID = {1: (2, -1, 0), 2: (0, 1, 2), 3: (1, 0, 2), 4: (-2, 1, 0), 5: (-2, 2, 1)}
+_CATEGORY_NAME = {1: "Позитив", 2: "Фантастика и колорит", 3: "Сказочность", 4: "Драматизм и печаль", 5: "Опасность и тьма"}
+_CATEGORY_PHRASE = {1: "Светло, позитивно", 2: "Колоритно, фантастично", 3: "Волшебно, сказочно", 4: "Драматично, печально", 5: "Тревожно, темно"}
+
+
+def _color_modifiers(chord: dict) -> tuple[int, int, int, list[str]]:
+    """Extension colour of a chord as (Δvalence, Δtension, Δcolor, note-words),
+    on top of its triad. Values from docs/MOOD_MODEL_SPEC.md §3.2."""
+    q = chord["quality"].lower()
+    triad = chord["triad"]
+    v = t = c = 0
+    notes: list[str] = []
+
+    def add(dv: int, dt: int, dc: int, word: str = "") -> None:
+        nonlocal v, t, c
+        v += dv; t += dt; c += dc
+        if word:
+            notes.append(word)
+
+    if re.search(r"maj\d", q):
+        add(1, 0, 1, "утончённо (maj7)")
+    elif triad == "maj" and "add" not in q and re.search(r"(?<![a-z])(7|9|11|13)", q):
+        add(0, 1, 0, "доминантовая тяга")
+    if "dim7" in q or re.search(r"°7|o7", q):
+        add(-1, 2, 2, "портал (dim7)")
+    elif triad == "dim" and "7" in q:
+        add(-1, 1, 1, "полууменьшённо")
+    if re.search(r"(?<![0-9])6", q) or "add6" in q:
+        add(1, 0, 1, "тепло, джаз (6)")
+    if "add9" in q or "add2" in q:
+        add(-1, 0, 1, "мечтательно (add9)")
+    if re.search(r"(?<![b#])(9|11|13)", q) and "maj" not in q and "add" not in q:
+        add(0, 0, 1, "красочно")
+    if "#11" in q:
+        add(1, 1, 2, "лидийский блеск (#11)")
+    for alt, word in (("b9", "напряжённо (b9)"), ("#9", "напряжённо (#9)"), ("b13", "темно (b13)"), ("#5", "парящее (#5)"), ("b5", "неустойчиво (b5)")):
+        if alt in q:
+            add(-1, 2, 1, word)
+    return v, t, c, notes
+
+
+def chord_color(chord: dict) -> tuple[int, int, int]:
+    base = _TRIAD_VEC.get(chord["triad"], (0, 0, 0))
+    dv, dt, dc, _ = _color_modifiers(chord)
+    clamp = lambda x: max(-4, min(4, x))
+    return (clamp(base[0] + dv), clamp(base[1] + dt), clamp(base[2] + dc))
+
+
+def _nearest_category(pos: tuple[float, float, float]) -> int:
+    return min(_CATEGORY_CENTROID, key=lambda k: sum((a - b) ** 2 for a, b in zip(pos, _CATEGORY_CENTROID[k])))
+
+
+def _compose_mood(category: int, notes: list[str]) -> str:
+    base = _CATEGORY_PHRASE[category]
+    return f"{base} · {', '.join(notes)}" if notes else base
+
+
+_MOVE_ARCHETYPES = [
+    # (predicate on (dv,dt,dc) delta, category-bias, phrase)
+]
+
+
+def _color_move_mood(c1: dict, c2: dict, clock: str) -> dict:
+    """Same-root colour move (interval 0): mood from the delta of colour vectors
+    plus a named archetype (docs §5.1)."""
+    a = chord_color(c1)
+    b = chord_color(c2)
+    dt = b[1] - a[1]
+    _, _, _, notes = _color_modifiers(c2)
+    n1 = len(_color_modifiers(c1)[3])
+    q2 = c2["quality"].lower()
+    tri2 = c2["triad"]
+    if (len(notes) < n1 and dt <= 0) or dt <= -2:            # снятие сложности/тяги
+        arch, cat = "разрешение, снятие напряжения", 1
+    elif tri2 == "aug" or "#5" in q2:
+        arch, cat = "парение, экзотика", 2
+    elif tri2 == "dim":
+        arch, cat = "затемнение, тревога", 5 if dt >= 2 else 4
+    elif tri2 == "min":
+        arch, cat = "затемнение, драматизация", 4
+    elif tri2 in ("sus2", "sus4") or "add" in q2 or "11" in q2:
+        arch, cat = "раскрытие, воздушно", 3
+    elif "b5" in q2 or "b9" in q2 or "#9" in q2 or "b13" in q2 or dt >= 2:
+        arch, cat = "уплотнение, напряжение", 4
+    elif b[2] - a[2] >= 1:
+        arch, cat = "потепление, красочно", 3
+    else:
+        arch, cat = "смена окраски", _nearest_category(b)
+    return {
+        "category": cat, "category_name": _CATEGORY_NAME[cat], "clock": clock,
+        "mood": f"{_CATEGORY_PHRASE[cat]} · {arch}" + (f" · {', '.join(notes)}" if notes else ""),
+        "provenance": "derived", "kind": "same_root",
+    }
+
+
+def pair_mood(c1: dict, c2: dict) -> dict:
+    """Enriched mood for any ordered chord pair. Authored where the triad
+    skeleton is in the 46-pair table, otherwise derived from the vector model."""
+    anchor1 = PAIRABLE.get(c1["triad"], c1["triad"])
+    anchor2 = PAIRABLE.get(c2["triad"], c2["triad"])
+    eff1 = {**c1, "triad": anchor1}
+    eff2 = {**c2, "triad": anchor2}
+    clock = fmt_clock(pair_minutes(eff1, eff2))
+    interval = (c2["root_pc"] - c1["root_pc"]) % 12
+
+    # Same root, same triad family: a pure colour move (C -> C11). A same-root
+    # maj<->min flip (C -> Cm) is an authored pair, so it falls through below.
+    if c1["root_pc"] == c2["root_pc"] and anchor1 == anchor2:
+        return _color_move_mood(c1, c2, clock)
+
+    if anchor1 in ("maj", "min") and anchor2 in ("maj", "min"):
+        entry = pair_table().get((anchor1, anchor2, interval))
+        if entry:
+            base = entry["category"]
+            e1v, e1t, e1c, n1 = _color_modifiers(c1)
+            e2v, e2t, e2c, n2 = _color_modifiers(c2)
+            centroid = _CATEGORY_CENTROID[base]
+            pos = (centroid[0] + e1v + e2v, centroid[1] + e1t + e2t, centroid[2] + e1c + e2c)
+            flipped = _nearest_category(pos)
+            notes = n1 + n2
+            # Conservative: keep the authored category unless the colour clearly
+            # pulls the pair into another one (margin, docs §5 / §11.2).
+            base_dist = sum((a - b) ** 2 for a, b in zip(pos, centroid))
+            flip_dist = sum((a - b) ** 2 for a, b in zip(pos, _CATEGORY_CENTROID[flipped]))
+            if flipped != base and flip_dist + 3 < base_dist:
+                return {"category": flipped, "category_name": _CATEGORY_NAME[flipped], "clock": clock,
+                        "mood": _compose_mood(flipped, notes), "provenance": "derived", "kind": "modal"}
+            mood = entry["mood_description"] + (f" · {', '.join(notes)}" if notes else "")
+            return {"category": base, "category_name": entry["category_name"], "clock": clock,
+                    "mood": mood, "provenance": "authored", "kind": "modal", "number": entry["number"]}
+
+    # Vector fallback: dim/aug involved or no authored entry. The destination
+    # chord dominates the resulting colour; the interval adds friction.
+    a = chord_color(c1)
+    b = chord_color(c2)
+    friction = 2 if interval in (1, 2, 6, 10, 11) else 0
+    pos = (b[0] + a[0] * 0.4, b[1] + a[1] * 0.4 + friction, b[2] + a[2] * 0.4)
+    cat = _nearest_category(pos)
+    _, _, _, notes = _color_modifiers(c2)
+    for chord in (c1, c2):
+        if chord["triad"] == "dim":
+            notes.append("неустойчиво (dim)")
+        elif chord["triad"] == "aug":
+            notes.append("парящее (aug)")
+    return {"category": cat, "category_name": _CATEGORY_NAME[cat], "clock": clock,
+            "mood": _compose_mood(cat, notes), "provenance": "heuristic", "kind": "modal"}
+
+
 def analyze_transition(c1: dict, c2: dict) -> dict:
     approx: list[str] = []
     q1, q2 = PAIRABLE.get(c1["triad"]), PAIRABLE.get(c2["triad"])
@@ -453,6 +614,7 @@ def analyze_transition(c1: dict, c2: dict) -> dict:
         "clock": fmt_clock(minutes),
         "same_root": same_root,
         "pair": None,
+        "mood": pair_mood(c1, c2),  # always present: authored / derived / heuristic
         "move": None if (entry or same_root) else _extended_move(c1, c2),
         "approx": approx,
     }
