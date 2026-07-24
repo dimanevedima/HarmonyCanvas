@@ -4122,19 +4122,19 @@ function renderLab(container, sketches, sketch, advice) {
         <div id="lab-score" class="lab-score-panel">${labScoreHtml(advice)}</div>
         <aside id="lab-chord-inspector" class="lab-chord-inspector">${labInspectorHtml(advice)}</aside>
       </div>
-      <div id="lab-scale-strip" class="lab-scale-strip">${labScaleHtml(advice)}</div>
+      <div id="lab-scale-strip" class="lab-scale-strip" hidden>${labScaleHtml(advice)}</div>
       <div id="lab-drawer-scrim" class="lab-drawer-scrim" hidden onclick="closeLabDrawers()"></div>
       <aside id="lab-voices-drawer" class="lab-drawer" hidden aria-hidden="true" aria-label="Голоса и микшер">
         <div class="lab-drawer-head"><strong>Голоса, выход и микшер</strong><button type="button" class="lab-drawer-close" onclick="closeLabDrawers()" aria-label="Закрыть">×</button></div>
         <div id="lab-voices-bar" class="lab-voices-bar">${labVoicesBarHtml(advice)}</div>
       </aside>
-      <div id="lab-analysis">${labAnalysisHtml(advice)}</div>
-      <details class="panel lab-text-inputs"><summary>Ввод текстом и заметки</summary>
+      <div id="lab-analysis" hidden>${labAnalysisHtml(advice)}</div>
+      <details class="panel lab-text-inputs" hidden><summary>Ввод текстом и заметки</summary>
         <label class="lab-main-field">Аккорды <small>через пробел или тире</small><textarea id="lab-chords" rows="2" placeholder="Bbmaj13/D Am/E C Dm" onchange="persistLabChordText()">${esc(sketch.chord_input)}</textarea></label>
         <label class="lab-main-field">Мелодия <small>нота:длительность, например D4:1 F4:.5 A4:.5</small><textarea id="lab-melody" rows="2" oninput="queueLabFieldSave()">${esc(melodyNotesToText(sketch.melody))}</textarea></label>
         <label class="lab-main-field">Заметка<textarea id="lab-notes" rows="2" oninput="queueLabFieldSave()">${esc(sketch.notes)}</textarea></label>
       </details>
-      <section><div class="section-head"><div><p class="eyebrow">TRY IT NOW</p><h2>Три контрастных действия</h2></div></div><div class="lab-actions">${actions}</div></section>
+      <section class="lab-try-it-section"><div class="section-head"><div><p class="eyebrow">TRY IT NOW</p><h2>Три контрастных действия</h2></div></div><div class="lab-actions">${actions}</div></section>
       <details class="panel lab-more"><summary>База теории и дополнительные техники</summary>${catalogMatches ? `<div class="lab-knowledge"><p class="eyebrow">СОВПАДЕНИЯ С КАТАЛОГАМИ ПТМ И РЕСЕРЧА</p><div class="ptm-badges">${catalogMatches}</div></div>` : `<p class="field-hint">Точного совпадения прогрессии с каталогом пока нет — это не означает, что материал неверен.</p>`}<div class="lab-poly-grid">${polyphony}</div><p class="field-hint">Подключено источников: ${advice.knowledge?.providers?.length || 0} · в гармоническом пуле ${advice.knowledge?.ptm_catalog_size || 0} схем.</p></details>
       ${midiSectionHtml("sketch", sketch.id)}
       <div class="lab-source-policy"><strong>Источники не смешиваются молча</strong><span>Аккорды = авторский замысел · MIDI = сыгранные ноты · объединение только по вашему решению.</span></div>
