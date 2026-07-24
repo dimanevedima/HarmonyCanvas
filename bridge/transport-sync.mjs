@@ -11,8 +11,11 @@
  * and play state feeding the editor's playhead and "120 DAW" badge — already
  * flows through the plug-in's play head, so this bridge is one-directional.
  *
- * Run it alongside the plug-in:  node transport-sync.mjs
- * (needs the AbletonJS control surface enabled and Live open — see README.)
+ * The sidecar auto-launches it (see sidecar/server.py); it can also be run by
+ * hand:  node transport-sync.mjs
+ * It is a long-lived daemon: it keeps retrying until Live's AbletonJS control
+ * surface answers and reconnects if the connection drops, so start order and
+ * Ableton restarts do not matter.
  */
 import { Ableton } from "ableton-js";
 
@@ -29,6 +32,31 @@ const TRANSPORT_URL = `http://${SIDECAR_HOST}:${SIDECAR_PORT}/api/transport`;
 
 const log = (msg) => process.stdout.write(`[transport-sync] ${msg}\n`);
 const warn = (msg) => process.stderr.write(`[transport-sync] ${msg}\n`);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let ableton = null;
+let connected = false;
+
+/* Connect to Live, retrying forever. Live's AbletonJS surface may not answer for
+ * a few seconds after Ableton launches (and the sidecar starts with it), so a
+ * failed attempt is expected, not fatal. */
+async function connect() {
+  for (;;) {
+    ableton = new Ableton({ logger: null, commandTimeoutMs: 8000, heartbeatInterval: 15000 });
+    ableton.on("disconnect", () => { connected = false; warn("Live disconnected; reconnecting"); });
+    ableton.on("connect", () => { connected = true; });
+    try {
+      await ableton.start();
+      connected = true;
+      log("connected to Ableton Live");
+      return;
+    } catch (error) {
+      warn(`waiting for Live / AbletonJS control surface: ${error.message}`);
+      try { ableton.close(); } catch { /* nothing open yet */ }
+      await sleep(2500);
+    }
+  }
+}
 
 /* Read the editor's last Play/Stop command from the sidecar. `seq` increases on
  * every POST, so we can tell a real button press from an unchanged poll. */
@@ -46,16 +74,13 @@ async function readTransport() {
 }
 
 async function main() {
-  const ableton = new Ableton({ logger: null, commandTimeoutMs: 8000, heartbeatInterval: 15000 });
-  await ableton.start();
-  log(`connected to Ableton Live; watching ${TRANSPORT_URL} every ${POLL_MS} ms`);
+  log(`watching ${TRANSPORT_URL} every ${POLL_MS} ms`);
+  await connect();
 
-  let lastSeq = null;   // null until the first successful read (baseline)
+  let lastSeq = null;   // null until the first read (baseline)
   let sidecarUp = true;
   let applying = false; // guard against overlapping Live calls on slow ticks
 
-  // One iteration: read the editor command and, on a real change, drive Live.
-  // Recursive setTimeout (not setInterval) so a slow Live call never overlaps.
   const tick = async () => {
     if (!applying) {
       applying = true;
@@ -66,7 +91,7 @@ async function main() {
         // First read is a baseline. Only auto-start if the editor already asked
         // to play before this bridge came up; never auto-stop on startup.
         const changed = lastSeq === null ? playing : seq !== lastSeq;
-        if (changed) {
+        if (changed && connected) {
           if (playing) { await ableton.song.startPlaying(); log("editor Play  -> Live start_playing"); }
           else { await ableton.song.stopPlaying(); log("editor Stop  -> Live stop_playing"); }
         }
@@ -84,7 +109,7 @@ async function main() {
 
   const shutdown = () => {
     clearTimeout(timer);
-    try { ableton.close(); } catch { /* already closing */ }
+    try { ableton?.close(); } catch { /* already closing */ }
     process.exit(0);
   };
   process.on("SIGINT", shutdown);
@@ -93,6 +118,5 @@ async function main() {
 
 main().catch((error) => {
   warn(`fatal: ${error.message}`);
-  warn("Is Live open with the AbletonJS control surface enabled? (Preferences -> Link/MIDI)");
   process.exitCode = 1;
 });

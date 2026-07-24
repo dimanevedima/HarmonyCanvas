@@ -25,10 +25,22 @@ def test_roman_numerals_resolve_against_the_sketch_key():
     assert roman_to_symbol("ii7", "C", "major") == "Dm7"
     assert roman_to_symbol("bVII", "C", "major") == "Bb"
     assert roman_to_symbol("IVmaj7", "C", "major") == "Fmaj7"
-    # Minor key: the tonic is minor, a written V stays major (the usual dominant).
+    # Minor key: a bare VI/VII is already natural minor's own (flat) 6th/7th —
+    # what people usually call bVI/bVII relative to the major — with no "b"
+    # needed; a written V stays major (the usual dominant).
     assert roman_to_symbol("i", "A", "minor") == "Am"
-    assert roman_to_symbol("bVI", "A", "minor") == "F"
+    assert roman_to_symbol("VI", "A", "minor") == "F"
+    assert roman_to_symbol("VII", "A", "minor") == "G"
     assert roman_to_symbol("V", "A", "minor") == "E"
+
+
+def test_roman_numerals_follow_the_declared_mode_not_the_parallel_major():
+    # C Phrygian's own 2nd and 3rd are a semitone/whole tone flat of major's —
+    # typing the bare degree must land on the mode's own tone, matching what
+    # the harmony-analysis panel would then label as a plain (unaltered) degree.
+    assert roman_to_symbol("II", "C", "phrygian") == "Db"
+    assert roman_to_symbol("III", "C", "phrygian") == "Eb"
+    assert roman_to_symbol("i", "C", "phrygian") == "Cm"
 
 
 def test_absolute_symbols_are_left_for_parse_chord():
@@ -38,7 +50,9 @@ def test_absolute_symbols_are_left_for_parse_chord():
 
 def test_normalize_mixes_roman_and_absolute_tokens():
     assert normalize_progression_text("I V vi IV", "C", "major") == "C G Am F"
-    assert normalize_progression_text("i bVII bVI V", "A", "minor") == "Am G F E"
+    # Natural minor's diatonic vii/vi need no "b" — they're already the mode's
+    # own flat tones (see test_roman_numerals_follow_the_declared_mode...).
+    assert normalize_progression_text("i VII VI V", "A", "minor") == "Am G F E"
     # Absolute symbols and separators pass through untouched.
     assert normalize_progression_text("C G Am7 F | bVII", "C", "major") == "C G Am7 F Bb"
 

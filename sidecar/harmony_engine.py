@@ -227,12 +227,19 @@ def parse_progression(text: str) -> list[dict]:
 
 # ── Roman-numeral degree input ──────────────────────────────────────────────
 # Text chord entry also accepts roman numerals (I V vi IV, bVII) so a
-# progression can be typed by function. Numerals are read against the major
-# scale the way classic roman analysis does — accidentals in the token (b/#)
-# cover every chromatic degree — then resolved to an absolute symbol in the
-# sketch's key, so the rest of the pipeline only ever handles plain symbols.
+# progression can be typed by function. A bare degree (no accidental) always
+# means the DECLARED MODE's own diatonic tone for that step, matching how the
+# harmony-analysis panel reads a chord's degree back (`_degree` below, which
+# also indexes into the mode's own `intervals`) — not the parallel major's
+# step. So in C Phrygian, "II" is Db (Phrygian's own flat 2nd, no accidental
+# needed); in a minor key, "VI"/"VII" are natural minor's own (already-flat)
+# 6th/7th, the chords usually called bVI/bVII relative to the major. An
+# explicit b/# in the token shifts one further semitone from that mode-native
+# tone. Getting this wrong — reading numerals against a fixed major scale
+# regardless of mode — makes non-major input silently land off the mode's own
+# degrees, which the analysis panel then flags as sharped/flatted chords the
+# user never asked for.
 
-_ROMAN_STEP = {1: 0, 2: 2, 3: 4, 4: 5, 5: 7, 6: 9, 7: 11}
 _ROMAN_NUMERALS = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7}
 _ROMAN_RE = re.compile(r"^([b#]*)([ivIV]+)(.*)$")
 
@@ -248,9 +255,9 @@ def roman_to_symbol(token: str, tonic: str = "C", mode: str = "major") -> str | 
     degree = _ROMAN_NUMERALS.get(letters.lower())
     if degree is None:
         return None
-    tonic_pc, _intervals, flats = _mode_context(tonic, mode)
+    tonic_pc, intervals, flats = _mode_context(tonic, mode)
     shift = accidentals.count("#") - accidentals.count("b")
-    root_pc = (tonic_pc + _ROMAN_STEP[degree] + shift) % 12
+    root_pc = (tonic_pc + intervals[degree - 1] + shift) % 12
     if "#" in accidentals:
         names = PC_SHARP
     elif "b" in accidentals:

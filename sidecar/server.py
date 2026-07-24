@@ -5,7 +5,10 @@ import ctypes
 import json
 import mimetypes
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import threading
 import uuid
 from datetime import datetime, timezone
@@ -630,23 +633,66 @@ def stop_with_parent(server: ThreadingHTTPServer, parent_pid: int) -> None:
     server.shutdown()
 
 
+def launch_transport_bridge(host: str, port: int) -> subprocess.Popen | None:
+    """Start the ableton-js transport bridge so the editor's Play/Stop reaches
+    Live's transport with no separate terminal. Best-effort: it needs Node on
+    PATH and the bundled bridge, and any missing piece just logs and leaves the
+    transport read-only (Live still drives the editor's playhead)."""
+    script = PROJECT_ROOT / "bridge" / "transport-sync.mjs"
+    if not script.exists():
+        print("Transport bridge not bundled; Play/Stop will not drive Ableton.")
+        return None
+    node = shutil.which("node")
+    if node is None:
+        print("Node.js not found on PATH; skipping the Ableton transport bridge.")
+        return None
+    # The sidecar itself runs --noconsole in the packaged plug-in, so the child
+    # has nowhere to print to unless we give it one: redirect its stdout/stderr
+    # to a log file, overwritten on each start, so a failed Live connection is
+    # still diagnosable without opening a terminal.
+    log_path = Path(tempfile.gettempdir()) / "HarmonyCanvas-transport-bridge.log"
+    try:
+        log_file = log_path.open("w", encoding="utf-8")
+    except OSError:
+        log_file = subprocess.DEVNULL
+    try:
+        # CREATE_NO_WINDOW so the console-less plug-in host spawns no visible shell.
+        creationflags = 0x08000000 if os.name == "nt" else 0
+        process = subprocess.Popen(
+            [node, str(script), "--host", host, "--port", str(port)],
+            cwd=str(script.parent),
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            creationflags=creationflags,
+        )
+        print(f"Ableton transport bridge started (pid {process.pid}); log: {log_path}")
+        return process
+    except OSError as error:
+        print(f"Could not start the transport bridge: {error}")
+        return None
+
+
 def run(
     host: str = "127.0.0.1",
     port: int = 8787,
     data_file: Path | None = None,
     parent_pid: int = 0,
+    with_bridge: bool = True,
 ) -> None:
     store = SketchStore(data_file or default_data_file())
     store.ensure_seed()
     server = HarmonyCanvasServer((host, port), store)
     if parent_pid:
         threading.Thread(target=stop_with_parent, args=(server, parent_pid), daemon=True).start()
+    bridge = launch_transport_bridge(host, port) if with_bridge else None
     print(f"Harmony Canvas sidecar: http://{host}:{port}/?focus=lab")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        if bridge is not None:
+            bridge.terminate()
         server.server_close()
 
 
@@ -656,8 +702,9 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--data", type=Path, default=None)
     parser.add_argument("--parent-pid", type=int, default=0)
+    parser.add_argument("--no-bridge", action="store_true", help="Do not auto-launch the Ableton transport bridge")
     args = parser.parse_args()
-    run(args.host, args.port, args.data, args.parent_pid)
+    run(args.host, args.port, args.data, args.parent_pid, with_bridge=not args.no_bridge)
 
 
 if __name__ == "__main__":

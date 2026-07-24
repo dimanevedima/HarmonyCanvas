@@ -8,6 +8,7 @@ on:
       - "plugin/**"
       - "sidecar/**"
       - "web/**"
+      - "bridge/**"
       - ".github/workflows/build-windows.yml"
 
 permissions:
@@ -25,23 +26,41 @@ jobs:
       - name: Download WebView2 SDK
         run: nuget install Microsoft.Web.WebView2 -OutputDirectory webview2 -NonInteractive
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install bridge dependencies
+        shell: pwsh
+        run: |
+          cd bridge
+          npm ci --omit=dev
+
       - name: Build standalone sidecar
         shell: pwsh
         run: |
           python -m pip install --disable-pip-version-check pyinstaller
+          # bridge (transport-sync.mjs + its node_modules) is bundled as data so
+          # the packaged sidecar can auto-launch the Ableton transport bridge —
+          # see launch_transport_bridge() in sidecar/server.py. It still needs a
+          # system Node.js on the machine running Ableton to actually run it.
           pyinstaller --noconfirm --clean --onefile --noconsole `
             --name HarmonyCanvasSidecar `
             --paths . `
             --add-data "web;web" `
             --add-data "sidecar/data;sidecar/data" `
+            --add-data "bridge;bridge" `
             sidecar/server.py
 
       - name: Smoke-test packaged sidecar
         shell: pwsh
         run: |
           $data = Join-Path $env:RUNNER_TEMP "harmony-canvas-smoke.json"
+          # --no-bridge: no Ableton is running in CI, so skip spawning the
+          # transport bridge (it would just retry the connection forever).
           $process = Start-Process -WindowStyle Hidden -FilePath "dist/HarmonyCanvasSidecar.exe" `
-            -ArgumentList "--port", "18787", "--data", $data -PassThru
+            -ArgumentList "--port", "18787", "--data", $data, "--no-bridge" -PassThru
           try {
             $ready = $false
             foreach ($attempt in 1..60) {
