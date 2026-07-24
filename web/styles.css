@@ -1332,7 +1332,16 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 
 .lab-row { height: var(--row, 20px); border-bottom: 1px solid color-mix(in srgb, var(--line) 40%, transparent); }
 .lab-row .lab-row-track { background-color: color-mix(in srgb, var(--deg, var(--line)) 7%, transparent); }
-.lab-row.is-chromatic .lab-row-track { background-color: color-mix(in srgb, var(--deg, var(--ink)) 6%, transparent); }
+/* Out-of-scale row lanes get a faint diagonal hatch in their chroma colour, on
+   top of the usual bar/beat/snap grid lines, so they read as non-diatonic. */
+.lab-row.is-chromatic .lab-row-track {
+  background-color: color-mix(in srgb, var(--deg, var(--ink)) 6%, transparent);
+  background-image:
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--deg) 12%, transparent) 0 4px, transparent 4px 8px),
+    repeating-linear-gradient(to right, var(--grid-bar) 0 1px, transparent 1px calc(var(--beat) * var(--bar, 4))),
+    repeating-linear-gradient(to right, var(--grid-beat) 0 1px, transparent 1px var(--beat)),
+    repeating-linear-gradient(to right, var(--grid-sub) 0 1px, transparent 1px calc(var(--beat) * var(--snap, 0.5)));
+}
 .lab-row.is-chord-tone .lab-row-track { background-color: color-mix(in srgb, var(--deg, var(--purple)) 17%, transparent); }
 .lab-row-label b { font-weight: 700; color: var(--deg, var(--ink)); min-width: 24px; }
 .lab-row.is-chromatic .lab-row-label b { color: #a8aaa4; font-weight: 400; }

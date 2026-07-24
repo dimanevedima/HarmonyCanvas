@@ -135,13 +135,19 @@ def compose_symbol(state: dict) -> str:
     if chord_type != "triad":
         if seventh == "maj": body += ("Maj" if base == "min" else "maj") + chord_type
         else: body += chord_type
-    marks = "".join(token for token in OPTION_IDS if token in (state.get("options") or []))
+    options = state.get("options") or []
+    # Altered tensions read clearer bracketed off the body: Fmaj13(#11), G7(b9).
+    tensions = {"b9", "#9", "#11", "b13"}
+    marks = "".join(token for token in OPTION_IDS if token in options and token not in tensions)
+    altered = "".join(token for token in OPTION_IDS if token in options and token in tensions)
     root = state["root"]
     if marks.startswith("b") and not body and len(root) == 1:
         # `Fb5` would read as F-flat; parenthesise so the flat belongs to the fifth.
         body = f"({marks})"
     else:
         body += marks
+    if altered:
+        body += f"({altered})"
     bass = state.get("bass") or root
     return f"{root}{body}{'/' + bass if bass != root else ''}"
 
@@ -210,6 +216,33 @@ def _degree_interval(intervals: list[int], degree: int, step: int) -> int:
     return (intervals[index % 7] + 12 * (index // 7) - intervals[degree]) % 12
 
 
+# Each extension: the scale step above the root, its "plain" semitone value, and
+# the alteration mark the scale implies when the real tone lands off that value.
+EXTENSION_ALTS = {
+    9: (8, 2, {1: "b9", 3: "#9"}),
+    11: (10, 5, {6: "#11"}),
+    13: (12, 9, {8: "b13"}),
+}
+
+
+def scale_extension_options(intervals: list[int], degree: int, chord_type: str) -> set[str]:
+    """Alteration marks a mode implies for a chord's tensions. A IV13 in C major
+    stacks a natural 11th that is a semitone sharp of F's perfect 11th, so it
+    reads as #11 (Fmaj13(#11)) — while the same shape in Dorian is a plain F13."""
+    top = TYPE_TOP.get(chord_type, 5)
+    marks: set[str] = set()
+    for extension, (step, plain, alt_map) in EXTENSION_ALTS.items():
+        # Only the tensions *below* the named top extension are spelled as marks
+        # (#11 inside a 13th). Altering the top extension itself would need the
+        # chord renamed to a lower type, which is left to the manual editor.
+        if extension >= top:
+            continue
+        value = _degree_interval(intervals, degree, step)
+        if value != plain and value in alt_map:
+            marks.add(alt_map[value])
+    return marks
+
+
 def degree_state(tonic_pc: int, intervals: list[int], degree: int, flats: bool, template: dict | None = None) -> dict:
     """Build the chord state for a scale degree, in the shape of a template chord.
 
@@ -251,6 +284,11 @@ def degree_state(tonic_pc: int, intervals: list[int], degree: int, flats: bool, 
 
         base, quality_seventh = secondary_base, secondary_seventh
         wanted = {item for item in wanted if item not in {"b5", "#5"}}
+    else:
+        # A diatonic 9/11/13 borrows its tensions from the mode, so a raised or
+        # lowered scale tone is spelled (#11, b9, b13…) instead of silently
+        # flattened to the plain extension.
+        wanted |= scale_extension_options(intervals, degree, chord_type)
     state = {
         "root": names[root_pc], "base": base,
         "type": chord_type,
@@ -386,14 +424,20 @@ def degree_position(distance: int, intervals: list[int]) -> int | None:
     return intervals.index(distance) if distance in intervals else None
 
 
-def melody_grid(tonic_pc: int, intervals: list[int], flats: bool, *, chromatic: bool = False, low: int = 55, high: int = 84) -> list[dict]:
-    """Rows for the note grid, high pitch first, ready for a piano roll."""
+def melody_grid(tonic_pc: int, intervals: list[int], flats: bool, *, chromatic: bool = False, low: int = 55, high: int = 84, used_pitches: set[int] | None = None) -> list[dict]:
+    """Rows for the note grid, high pitch first, ready for a piano roll.
+
+    Out-of-scale rows are dropped when the chromatic view is off — except any
+    pitch that actually carries a note, so a chromatic melody note is never
+    hidden just because its lane isn't shown (Hookpad behaves the same way).
+    """
     names = PC_FLAT if flats else PC_SHARP
+    used = used_pitches or set()
     rows = []
     for midi in range(high, low - 1, -1):
         distance = (midi - tonic_pc) % 12
         in_scale = distance in intervals
-        if not chromatic and not in_scale:
+        if not chromatic and not in_scale and midi not in used:
             continue
         rows.append({
             "midi": midi,
@@ -774,7 +818,13 @@ def apply_chord_edit(chord_input: str, *, index: int, op: str, value: str = "", 
         elif state.get("seventh") is None:
             # Follow the mode, the way a diatonic seventh would be spelled here.
             state["seventh"] = "dim" if state["base"] == "dim" else "maj" if _mode_seventh_is_major(intervals, degree) else "dom"
-        state["options"] = [item for item in state["options"] if option_availability(state["type"]).get(item)]
+        kept = [item for item in state["options"] if option_availability(state["type"]).get(item)]
+        if (chord["root_pc"] - tonic_pc) % 12 in intervals:
+            # Diatonic root: spell the tensions the mode implies (e.g. IV13 in
+            # major gains its #11), replacing any stale auto-marks.
+            merged = (set(kept) - {"b9", "#9", "#11", "b13"}) | scale_extension_options(intervals, degree, state["type"])
+            kept = [item for item in OPTION_IDS if item in merged and option_availability(state["type"]).get(item)]
+        state["options"] = kept
     elif op == "quality":
         state["base"] = value if value in BASE_TRIAD else "maj"
         if state["type"] != "triad" and state["base"] == "dim" and state.get("seventh") == "dom":
@@ -943,7 +993,8 @@ def analyze_sketch(*, chord_input: str, tonic: str, mode: str, melody: list[dict
     # outside the default G3–C6 window without a scrollable roll.
     octave = max(-3, min(4, int(octave or 0)))
     grid = melody_grid(tonic_pc, intervals, flats, chromatic=chromatic,
-                       low=max(0, 55 + 12 * octave), high=min(127, 84 + 12 * octave))
+                       low=max(0, 55 + 12 * octave), high=min(127, 84 + 12 * octave),
+                       used_pitches={int(note["pitch"]) for note in melody_notes})
     for row in grid:
         row["chord_tone"] = row["pitch_class"] in selected_tones
     try:
