@@ -1495,3 +1495,58 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
    ways, so notes read on one uninterrupted time axis (webaudio-pianoroll feel). */
 .lab-systems { display: grid; }
 .lab-system { overflow: auto; }
+
+/* ── Pair dial: modal circle for the mood of a chord pair (Phase 2) ───────── */
+#lab-pair-dial[hidden] { display: none; }
+.lab-pair-scrim { position: fixed; inset: 0; z-index: 70; background: rgba(20, 22, 20, .38); }
+.lab-pair-modal { position: fixed; z-index: 71; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(760px, 94vw); max-height: 92vh; overflow: auto; background: var(--card); border: 1px solid var(--line);
+  border-radius: 18px; box-shadow: 0 24px 60px rgba(20, 22, 20, .3); padding: 16px 18px 20px; }
+.lab-pair-headbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.lab-pair-headbar strong { font-size: 15px; }
+.lab-pair-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 720px) { .lab-pair-grid { grid-template-columns: 1fr; } }
+
+.lab-pair-wheel { position: relative; width: 340px; height: 340px; margin: 0 auto; border-radius: 50%;
+  background: radial-gradient(circle at center, var(--card) 0 24%, transparent 25%), color-mix(in srgb, var(--ink) 4%, var(--card)); border: 1px solid var(--line); }
+.lab-pair-cell { position: absolute; inset: 0; }
+.lab-pair-maj, .lab-pair-min { position: absolute; border: 1px solid transparent; border-radius: 9px; cursor: pointer;
+  background: transparent; color: var(--ink); font-weight: 800; line-height: 1; display: grid; place-items: center; }
+.lab-pair-maj { left: calc(50% - 24px); top: calc(50% - 15px); width: 48px; height: 30px; font-size: 14px;
+  transform: rotate(var(--angle)) translateY(-140px) rotate(var(--counter)); }
+.lab-pair-min { left: calc(50% - 22px); top: calc(50% - 13px); width: 44px; height: 26px; font-size: 11px; color: var(--muted);
+  transform: rotate(var(--angle)) translateY(-96px) rotate(var(--counter)); }
+.lab-pair-maj:hover, .lab-pair-min:hover { background: color-mix(in srgb, var(--purple) 14%, transparent); }
+.lab-pair-maj.is-a, .lab-pair-min.is-a { border-color: var(--ink); color: var(--ink); }
+.lab-pair-maj.is-b, .lab-pair-min.is-b { background: var(--purple); color: #fff; border-color: var(--purple); }
+.lab-pair-center { position: absolute; inset: 34%; border-radius: 50%; background: var(--card); border: 1px solid var(--line);
+  display: grid; place-items: center; align-content: center; box-shadow: inset 0 1px 6px rgba(20, 22, 20, .08); }
+.lab-pair-center b { font-size: 26px; color: var(--purple); font-variant-numeric: tabular-nums; }
+.lab-pair-center small { color: var(--muted); font-size: 10px; letter-spacing: .04em; }
+
+.lab-pair-side { display: grid; gap: 12px; }
+.lab-pair-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lab-pair-tabs button { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper);
+  color: var(--muted); cursor: pointer; font: inherit; font-size: 12px; text-align: left; }
+.lab-pair-tabs button b { color: var(--ink); font-size: 15px; }
+.lab-pair-tabs button.active { border-color: var(--purple); background: color-mix(in srgb, var(--purple) 10%, var(--paper)); color: var(--purple); }
+.lab-pair-quals { display: flex; flex-wrap: wrap; gap: 5px; }
+.lab-pair-quals button { padding: 4px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper);
+  color: var(--ink); cursor: pointer; font: inherit; font-size: 12px; }
+.lab-pair-quals button:hover { border-color: #83bdb5; background: #edf7f5; }
+.lab-pair-quals button.active { border-color: var(--purple); background: var(--purple); color: #fff; }
+
+.lab-pair-mood { min-height: 64px; }
+.lab-pair-cat { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px;
+  background: color-mix(in srgb, var(--moodc, var(--purple)) 14%, var(--card)); border-left: 4px solid var(--moodc, var(--purple)); }
+.lab-pair-cat strong { color: var(--moodc); font-size: 15px; }
+.lab-pair-cat em { margin-left: auto; font-style: normal; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.lab-pair-time { font-size: 18px; font-weight: 800; color: var(--moodc); font-variant-numeric: tabular-nums; }
+.lab-pair-desc { margin: 8px 2px 0; font-size: 14px; color: var(--ink); }
+.lab-pair-cat-1 { --moodc: #4f9e34; }
+.lab-pair-cat-2 { --moodc: #8f63d8; }
+.lab-pair-cat-3 { --moodc: #2f9ed6; }
+.lab-pair-cat-4 { --moodc: #d97a2b; }
+.lab-pair-cat-5 { --moodc: #cf4437; }
+.lab-pair-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.lab-pair-insert { border-color: var(--purple) !important; background: color-mix(in srgb, var(--purple) 12%, var(--paper)) !important; color: var(--purple) !important; }

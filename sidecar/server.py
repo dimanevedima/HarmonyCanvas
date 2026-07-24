@@ -449,6 +449,22 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
                 state["seq"] += 1
                 self.send_json(dict(state))
             return
+        if parts == ["api", "pair-mood"]:
+            # Stateless: mood + voicing for any ordered chord pair (dial popup).
+            from sidecar import ptm_analysis
+            from sidecar.harmony_engine import parse_chord as parse_full
+
+            def info(symbol: str) -> dict:
+                symbol = str(symbol or "").strip()
+                full = parse_full(symbol)
+                return {"symbol": symbol, "midi": full["midi"] if full else [], "valid": bool(full)}
+
+            a_sym = str(payload.get("a") or "").strip()
+            b_sym = str(payload.get("b") or "").strip()
+            ca, cb = ptm_analysis.parse_chord(a_sym), ptm_analysis.parse_chord(b_sym)
+            mood = ptm_analysis.pair_mood(ca, cb) if (ca and cb) else None
+            self.send_json({"a": info(a_sym), "b": info(b_sym), "mood": mood})
+            return
         if parts == ["api", "sketches"]:
             self.send_json(self.store.create(payload), HTTPStatus.CREATED)
             return

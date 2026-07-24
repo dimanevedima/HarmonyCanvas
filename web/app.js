@@ -4350,9 +4350,150 @@ function labZoomStep(dir) {
 /** Double-click a chord block selects it for replacement from the palette. */
 function labLaneDblClick(event) {
   const block = event.target.closest?.(".lab-lane-chord");
-  if (block) selectLabChord(Number(block.dataset.chord));
-  else deselectLabChord(event);
+  if (block) { openLabPairDial(Number(block.dataset.chord)); return; }
+  deselectLabChord(event);
   setLabContextMode("chord");
+}
+
+// ── Pair dial: modal circle for exploring the mood of A → B (docs Phase 2) ───
+
+const PAIR_FIFTHS = ["C", "G", "D", "A", "E", "B", "Gb", "Db", "Ab", "Eb", "Bb", "F"];
+const PAIR_PC = { C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 };
+const PAIR_FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const PAIR_QUALS = [
+  ["", "maj"], ["m", "min"], ["dim", "dim"], ["aug", "aug"], ["6", "6"], ["m6", "m6"],
+  ["7", "7"], ["m7", "m7"], ["maj7", "△7"], ["9", "9"], ["m9", "m9"], ["11", "11"],
+  ["m11", "m11"], ["13", "13"], ["sus2", "sus2"], ["sus4", "sus4"], ["add9", "add9"],
+  ["7(b9)", "7♭9"], ["7(#9)", "7♯9"], ["m7(b5)", "ø"], ["dim7", "°7"], ["maj7(#11)", "△♯11"],
+];
+
+function pairSplit(symbol) {
+  const m = /^([A-G][#b]?)(.*)$/.exec(String(symbol || "").trim());
+  return m ? { root: m[1], qual: m[2] } : { root: "C", qual: "" };
+}
+
+function pairRelMinor(major) {
+  return PAIR_FLAT[(PAIR_PC[major] + 9) % 12] + "m";
+}
+
+function openLabPairDial(index) {
+  const advice = window.currentLabAdvice;
+  const chord = (advice?.chords || [])[index];
+  if (!chord) return;
+  const next = (advice.chords || [])[index + 1];
+  const bSym = next ? next.symbol : PAIR_FLAT[(chord.chroma != null ? (PAIR_PC[pairSplit(chord.symbol).root] + 7) % 12 : 7)]; // default B = a fifth up
+  window.labPair = { index, active: "b", a: chord.symbol, b: bSym, mood: null, aMidi: [], bMidi: [] };
+  let host = document.getElementById("lab-pair-dial");
+  if (!host) { host = document.createElement("div"); host.id = "lab-pair-dial"; document.body.appendChild(host); }
+  host.hidden = false;
+  labRenderPairDial();
+  refreshLabPair();
+}
+
+function closeLabPairDial() {
+  ptmAudio.stopAll();
+  const host = document.getElementById("lab-pair-dial");
+  if (host) host.hidden = true;
+  window.labPair = null;
+}
+
+function setLabPairActive(side) { if (window.labPair) { window.labPair.active = side; labRenderPairDial(); } }
+function setLabPairRoot(root, minor) {
+  const p = window.labPair; if (!p) return;
+  p[p.active] = minor ? root + "m" : root;
+  labRenderPairDial(); refreshLabPair();
+}
+function setLabPairQual(qual) {
+  const p = window.labPair; if (!p) return;
+  p[p.active] = pairSplit(p[p.active]).root + qual;
+  labRenderPairDial(); refreshLabPair();
+}
+
+async function refreshLabPair() {
+  const p = window.labPair; if (!p) return;
+  try {
+    const res = await api("/pair-mood", { method: "POST", body: JSON.stringify({ a: p.a, b: p.b }) });
+    if (!window.labPair) return;
+    p.mood = res.mood; p.aMidi = res.a?.midi || []; p.bMidi = res.b?.midi || [];
+    labRenderPairMood();
+  } catch (error) { toast(error.message); }
+}
+
+function playLabPair() {
+  const p = window.labPair; if (!p) return;
+  labPlay([p.aMidi, p.bMidi]);
+}
+
+async function insertLabPairAfter() {
+  const p = window.labPair; if (!p || !currentSketchId) return;
+  const advice = window.currentLabAdvice;
+  const a = (advice.chords || [])[p.index];
+  const beat = a ? a.start + a.beats : 0;
+  await labInsertChordAt(p.b, beat);
+  closeLabPairDial();
+}
+
+function labPairWheelHtml() {
+  const p = window.labPair;
+  const aRoot = pairSplit(p.a); const bRoot = pairSplit(p.b);
+  const aPc = PAIR_PC[aRoot.root]; const bPc = PAIR_PC[bRoot.root];
+  const isMin = q => q.startsWith("m") && !q.startsWith("maj");
+  const aMaj = q => !isMin(q); // treat dim/aug/sus as sitting on the major seat
+  const cells = PAIR_FIFTHS.map((maj, i) => {
+    const rel = pairRelMinor(maj);
+    const majPc = PAIR_PC[maj]; const minPc = PAIR_PC[rel.slice(0, -1)];
+    const majA = aPc === majPc && aMaj(aRoot.qual), minA = aPc === minPc && isMin(aRoot.qual);
+    const majB = bPc === majPc && aMaj(bRoot.qual), minB = bPc === minPc && isMin(bRoot.qual);
+    return `<div class="lab-pair-cell" style="--angle:${i * 30}deg;--counter:${-i * 30}deg">
+      <button type="button" class="lab-pair-maj ${majA ? "is-a" : ""} ${majB ? "is-b" : ""}" onclick="setLabPairRoot('${maj}',false)">${maj}</button>
+      <button type="button" class="lab-pair-min ${minA ? "is-a" : ""} ${minB ? "is-b" : ""}" onclick="setLabPairRoot('${rel.slice(0, -1)}',true)">${rel}</button>
+    </div>`;
+  }).join("");
+  return `<div class="lab-pair-wheel">${cells}<div class="lab-pair-center"><b id="lab-pair-clock">—</b><small>А → B</small></div></div>`;
+}
+
+function labChordChipRow(side) {
+  const p = window.labPair;
+  const cur = pairSplit(p[side]).qual;
+  return `<div class="lab-pair-quals">${PAIR_QUALS.map(([q, label]) =>
+    `<button type="button" class="${cur === q ? "active" : ""}" onclick="setLabPairActive('${side}');setLabPairQual('${q}')">${label}</button>`).join("")}</div>`;
+}
+
+function labRenderPairDial() {
+  const host = document.getElementById("lab-pair-dial"); const p = window.labPair;
+  if (!host || !p) return;
+  host.innerHTML = `<div class="lab-pair-scrim" onclick="closeLabPairDial()"></div>
+    <div class="lab-pair-modal" role="dialog" aria-label="Пара аккордов">
+      <div class="lab-pair-headbar"><strong>Пара аккордов — настроение перехода</strong><button type="button" class="lab-drawer-close" onclick="closeLabPairDial()" aria-label="Закрыть">×</button></div>
+      <div class="lab-pair-grid">
+        ${labPairWheelHtml()}
+        <div class="lab-pair-side">
+          <div class="lab-pair-tabs">
+            <button type="button" class="${p.active === "a" ? "active" : ""}" onclick="setLabPairActive('a')">Аккорд A: <b>${esc(p.a)}</b></button>
+            <button type="button" class="${p.active === "b" ? "active" : ""}" onclick="setLabPairActive('b')">Аккорд B: <b>${esc(p.b)}</b></button>
+          </div>
+          ${labChordChipRow(p.active)}
+          <div id="lab-pair-mood" class="lab-pair-mood"></div>
+          <div class="lab-pair-actions">
+            <button type="button" class="lab-tool-btn" onclick="playLabPair()">▶ Сыграть пару</button>
+            <button type="button" class="lab-tool-btn lab-pair-insert" onclick="insertLabPairAfter()">Вставить B после A</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  labRenderPairMood();
+}
+
+function labRenderPairMood() {
+  const box = document.getElementById("lab-pair-mood"); const p = window.labPair;
+  if (!box || !p) return;
+  const clock = document.getElementById("lab-pair-clock");
+  const m = p.mood;
+  if (!m) { box.innerHTML = `<span class="field-hint">Выберите аккорды на круге</span>`; return; }
+  if (clock) clock.textContent = m.clock;
+  const prov = { authored: "из таблицы 46", derived: "производное", heuristic: "эвристика" }[m.provenance] || m.provenance;
+  box.innerHTML = `<div class="lab-pair-cat lab-pair-cat-${m.category}"><span class="lab-pair-time">${esc(m.clock)}</span><strong>${esc(m.category_name)}</strong><em>${esc(prov)}</em></div>
+    <p class="lab-pair-desc">${esc(m.mood)}</p>`;
 }
 
 async function setLabChromatic(on) {
