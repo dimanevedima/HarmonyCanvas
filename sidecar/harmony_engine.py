@@ -128,6 +128,38 @@ def state_intervals(state: dict) -> list[int]:
     return sorted(dict.fromkeys(intervals))
 
 
+def chord_tone_labels(state: dict, root_pc: int, bass_pc: int | None = None) -> list[dict]:
+    """Name every sounding pitch as a degree of the chord.
+
+    Keep compound tensions compound (9/11/13), while ordinary triad tones stay
+    1/3/5.  The labels are visual annotations for the piano roll; MIDI pitch
+    remains the source of truth.
+    """
+    simple = {
+        0: "1", 1: "b2", 2: "2", 3: "b3", 4: "3", 5: "4",
+        6: "b5", 7: "5", 8: "#5", 9: "6", 10: "b7", 11: "7",
+    }
+    compound = {13: "b9", 14: "9", 15: "#9", 17: "11", 18: "#11", 20: "b13", 21: "13"}
+    labels: list[dict] = []
+    seen: set[int] = set()
+    for interval in state_intervals(state):
+        pitch_class = (root_pc + interval) % 12
+        if pitch_class in seen:
+            continue
+        label = compound.get(interval)
+        if label is None and interval == 9 and state.get("type") != "triad" and state.get("seventh") == "dim":
+            label = "bb7"
+        labels.append({"pitch_class": pitch_class, "label": label or simple[interval % 12]})
+        seen.add(pitch_class)
+
+    # A slash bass may intentionally be outside the chord (C/D). It still
+    # sounds, so expose its row and describe its root-relative interval.
+    if bass_pc is not None and bass_pc not in seen:
+        interval = (bass_pc - root_pc) % 12
+        labels.append({"pitch_class": bass_pc, "label": simple[interval]})
+    return labels
+
+
 def compose_symbol(state: dict) -> str:
     """Render chord state back to text. The inverse of `split_quality`."""
     base, chord_type, seventh = state["base"], state["type"], state.get("seventh")
@@ -181,7 +213,8 @@ def parse_chord(symbol: str) -> dict | None:
     tone_names = [names[(root_pc + interval) % 12] for interval in intervals]
     return {
         "symbol": clean, "root": root, "root_pc": root_pc, "bass": bass, "bass_pc": bass_pc,
-        "quality": quality, "midi": notes, "tone_names": tone_names, "state": state,
+        "quality": quality, "midi": notes, "tone_names": tone_names,
+        "tone_labels": chord_tone_labels(state, root_pc, bass_pc), "state": state,
         "options_available": option_availability(state["type"], inversion),
         "inversions_available": inversion_availability(state["type"]),
     }
@@ -443,20 +476,22 @@ def degree_position(distance: int, intervals: list[int]) -> int | None:
     return intervals.index(distance) if distance in intervals else None
 
 
-def melody_grid(tonic_pc: int, intervals: list[int], flats: bool, *, chromatic: bool = False, low: int = 55, high: int = 84, used_pitches: set[int] | None = None) -> list[dict]:
+def melody_grid(tonic_pc: int, intervals: list[int], flats: bool, *, chromatic: bool = False, low: int = 55, high: int = 84, used_pitches: set[int] | None = None, included_pitch_classes: set[int] | None = None) -> list[dict]:
     """Rows for the note grid, high pitch first, ready for a piano roll.
 
     Out-of-scale rows are dropped when the chromatic view is off — except any
-    pitch that actually carries a note, so a chromatic melody note is never
-    hidden just because its lane isn't shown (Hookpad behaves the same way).
+    pitch that actually carries a note or pitch class sounded by a chord. Thus
+    borrowed chord tones stay visible without expanding the roll to all twelve
+    chromatic rows.
     """
     names = PC_FLAT if flats else PC_SHARP
     used = used_pitches or set()
+    included = included_pitch_classes or set()
     rows = []
     for midi in range(high, low - 1, -1):
         distance = (midi - tonic_pc) % 12
         in_scale = distance in intervals
-        if not chromatic and not in_scale and midi not in used:
+        if not chromatic and not in_scale and midi not in used and midi % 12 not in included:
             continue
         rows.append({
             "midi": midi,
@@ -1014,12 +1049,14 @@ def analyze_sketch(*, chord_input: str, tonic: str, mode: str, melody: list[dict
 
     melody_notes = annotate_melody(normalise_melody(melody), chords, tonic_pc, intervals, flats)
     selected_tones = {midi % 12 for midi in selected_chord["midi"]} if selected_chord else set()
+    sounded_chord_tones = {midi % 12 for chord in chords for midi in chord["midi"]}
     # `octave` shifts the visible register (low/mid/high) so notes can be placed
     # outside the default G3–C6 window without a scrollable roll.
     octave = max(-3, min(4, int(octave or 0)))
     grid = melody_grid(tonic_pc, intervals, flats, chromatic=chromatic,
                        low=max(0, 55 + 12 * octave), high=min(127, 84 + 12 * octave),
-                       used_pitches={int(note["pitch"]) for note in melody_notes})
+                       used_pitches={int(note["pitch"]) for note in melody_notes},
+                       included_pitch_classes=sounded_chord_tones)
     for row in grid:
         row["chord_tone"] = row["pitch_class"] in selected_tones
     try:

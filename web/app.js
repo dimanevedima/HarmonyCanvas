@@ -4200,6 +4200,9 @@ function labScoreSpan(advice = window.currentLabAdvice) {
 // and chords read by their real pitch instead of falling back to grey.
 function labChromaStyle(chroma) { return chroma === null || chroma === undefined ? "" : `--deg:var(--chroma-${chroma});`; }
 function labChromaColor(chroma) { return chroma === null || chroma === undefined ? "var(--deg-1)" : `var(--chroma-${chroma})`; }
+function labChordToneLabel(chord, pitchClass) {
+  return (chord.tone_labels || []).find(item => item.pitch_class === pitchClass)?.label || "";
+}
 
 function labScoreHtml(advice) {
   const timeline = advice.timeline || { beats_per_bar: 4, total_beats: 16, bars: 4, chromatic: false };
@@ -4227,6 +4230,15 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
 
   const rows = grid.map(row => {
     const deg = labChromaStyle(row.chroma);
+    const toneBands = (advice.chords || []).map(chord => {
+      const from = Math.max(Number(chord.start) || 0, offset);
+      const to = Math.min((Number(chord.start) || 0) + (Number(chord.beats) || 0), offset + span);
+      const pitchClasses = new Set((chord.midi || []).map(midi => Number(midi) % 12));
+      if (to <= from || !pitchClasses.has(row.pitch_class)) return "";
+      const label = labChordToneLabel(chord, row.pitch_class);
+      const showLabel = (Number(chord.start) || 0) >= offset;
+      return `<i class="lab-chord-tone-band ${chord.diatonic === false ? "is-outside" : ""}" style="--start:${from - offset};--len:${to - from};--chord-deg:${labChromaColor(chord.chroma)}" aria-hidden="true">${showLabel && label ? `<b>${esc(label)}</b>` : ""}</i>`;
+    }).join("");
     const notes = (advice.melody || []).map((note, index) => [note, index])
       .filter(([note]) => note.pitch === row.midi && inSystem(note.start))
       .map(([note, index]) => {
@@ -4241,7 +4253,7 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
     // column, and the note name already says what the row is.
     return `<div class="lab-row ${row.in_scale ? "" : "is-chromatic"} ${row.chord_tone ? "is-chord-tone" : ""}" style="${deg}" title="${esc(row.name)} · ступень ${esc(row.degree)}">
       <span class="lab-row-label"><b>${row.in_scale ? esc(row.degree) : ""}</b><small>${esc(row.name)}</small>${row.chord_tone ? `<em class="lab-row-dot" title="тон выбранного аккорда"></em>` : ""}</span>
-      <span class="lab-row-track" data-midi="${row.midi}" onpointerdown="labRowPointerDown(event,${row.midi})">${notes}</span></div>`;
+      <span class="lab-row-track" data-midi="${row.midi}" onpointerdown="labRowPointerDown(event,${row.midi})">${toneBands}${notes}</span></div>`;
   }).join("");
 
   // The chord block is the control: drag to move, drag the edge to resize,

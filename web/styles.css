@@ -1342,10 +1342,33 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
     repeating-linear-gradient(to right, var(--grid-beat) 0 1px, transparent 1px var(--beat)),
     repeating-linear-gradient(to right, var(--grid-sub) 0 1px, transparent 1px calc(var(--beat) * var(--snap, 0.5)));
 }
-.lab-row.is-chord-tone .lab-row-track { background-color: color-mix(in srgb, var(--deg, var(--purple)) 17%, transparent); }
 .lab-row-label b { font-weight: 700; color: var(--deg, var(--ink)); min-width: 24px; }
 .lab-row.is-chromatic .lab-row-label b { color: #a8aaa4; font-weight: 400; }
-.lab-row-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--deg, var(--purple)); margin-left: auto; }
+.lab-row-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--deg, var(--purple)); margin-left: auto;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--deg, var(--purple)) 35%, white); }
+
+/* The scale remains the quiet full-width background. Chord membership is a
+   stronger, time-bounded layer, so every row says both "which pitch?" and
+   "under which chord?". */
+.lab-chord-tone-band { position: absolute; top: 1px; bottom: 1px;
+  left: calc(var(--start) * var(--beat)); width: calc(var(--len) * var(--beat));
+  z-index: 0; pointer-events: none; overflow: hidden;
+  background: color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 24%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 58%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 58%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 72%, transparent); }
+.lab-chord-tone-band.is-outside {
+  background-color: color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 17%, transparent);
+  background-image: repeating-linear-gradient(135deg,
+    color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 34%, transparent) 0 4px,
+    transparent 4px 8px);
+  border-block-color: color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 72%, transparent); }
+.lab-chord-tone-band > b { position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
+  min-width: 13px; padding: 1px 3px; border-radius: 4px;
+  background: color-mix(in srgb, var(--card) 78%, transparent);
+  color: color-mix(in srgb, var(--chord-deg, var(--deg, var(--ink))) 78%, var(--ink));
+  font-size: 8px; line-height: 1.15; font-weight: 800; text-align: center;
+  font-variant-numeric: tabular-nums; opacity: .86; }
 
 .lab-note { position: absolute; top: 2px; bottom: 2px; left: calc(var(--start) * var(--beat)); width: calc(var(--len) * var(--beat) - 2px); border-radius: 3px; background: color-mix(in srgb, var(--deg, var(--ink)) 55%, var(--ink)); cursor: grab; touch-action: none; }
 .lab-note.is-chord-tone { background: var(--deg, var(--purple)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35); }

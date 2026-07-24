@@ -73,6 +73,19 @@ def test_the_note_grid_labels_every_semitone_by_degree():
     assert [row["name"] for row in diatonic][::-1] == ["C4", "D4", "E4", "F4", "G4", "A4", "B4"]
 
 
+def test_borrowed_chord_tones_open_only_the_needed_chromatic_rows():
+    report = analyze_sketch(chord_input="C Abaug", tonic="C", mode="major")
+    chromatic_pitch_classes = {row["pitch_class"] for row in report["melody_grid"] if not row["in_scale"]}
+    assert chromatic_pitch_classes == {8}, "Ab is shown for Abaug without opening every chromatic row"
+    assert report["timeline"]["chromatic"] is False
+
+
+def test_chord_tones_are_labelled_from_each_chord_root():
+    report = analyze_sketch(chord_input="C Abaug", tonic="C", mode="major")
+    labels = {item["pitch_class"]: item["label"] for item in report["chords"][1]["tone_labels"]}
+    assert labels == {8: "1", 0: "3", 4: "#5"}
+
+
 def test_melody_is_marked_against_the_chord_sounding_underneath_it():
     report = analyze_sketch(
         chord_input="Am F G C", tonic="C", mode="major", selected_index=0,

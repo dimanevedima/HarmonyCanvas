@@ -50,6 +50,11 @@ feel) with a harmony lane below it.
 - notes are coloured by tonic-relative pitch class (12-hue chroma); out-of-scale
   rows, notes and chords are hatched in their real colour, never flat grey;
 - a note added off-scale stays visible even with the chromatic view off.
+- chord-tone bands are drawn only across the time span of the sounding chord;
+  borrowed chords use stronger hatching and each band names its root-relative
+  chord degree (`1`, `b3`, `#5`, `7`, `#11`…);
+- with the chromatic view off, out-of-scale rows required by the harmony open
+  automatically, while unrelated chromatic rows stay hidden.
 
 **Notes**
 - click empty grid = add a note at the default length; drag the body to move,
