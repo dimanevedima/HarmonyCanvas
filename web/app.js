@@ -4391,7 +4391,7 @@ function openLabPairDial(index) {
   const next = (advice.chords || [])[index + 1];
   const bSym = next ? next.symbol : PAIR_FLAT[(chord.chroma != null ? (PAIR_PC[pairSplit(chord.symbol).root] + 7) % 12 : 7)]; // default B = a fifth up
   // Keep the originals so "Сбросить" can restore what was double-clicked.
-  window.labPair = { index, active: "b", a: chord.symbol, b: bSym, a0: chord.symbol, b0: bSym, aMode: "", bMode: "", aLevel: "13", bLevel: "13", mood: null, aMidi: [], bMidi: [] };
+  window.labPair = { index, active: "b", a: chord.symbol, b: bSym, a0: chord.symbol, b0: bSym, aMode: "", bMode: "", aSrc: "own", bSrc: "own", aLevel: "13", bLevel: "13", aVariants: [], bVariants: [], mood: null, aMidi: [], bMidi: [] };
   let host = document.getElementById("lab-pair-dial");
   if (!host) { host = document.createElement("div"); host.id = "lab-pair-dial"; document.body.appendChild(host); }
   host.hidden = false;
@@ -4416,34 +4416,56 @@ function setLabPairActive(side) { if (window.labPair) { window.labPair.active = 
 function setLabPairRoot(root, minor) {
   const p = window.labPair; if (!p) return;
   p[p.active] = minor ? root + "m" : root;
-  // A mode selection follows the new root (Dorian on C → Dorian on E); a plain
-  // click without a mode just sets the triad.
-  if (p[p.active + "Mode"]) applyLabPairMode(); else { labRenderPairDial(); refreshLabPair(); }
+  applyLabPair(p.active);
 }
 function setLabPairQual(qual) {
   const p = window.labPair; if (!p) return;
   p[p.active] = pairSplit(p[p.active]).root + qual;
-  p[p.active + "Mode"] = ""; // a manual quality overrides any mode fit
-  labRenderPairDial(); refreshLabPair();
+  p[p.active + "Mode"] = ""; p[p.active + "Src"] = "own"; // a manual quality overrides any fit
+  applyLabPair(p.active);
 }
 function setLabPairMode(mode) {
   const p = window.labPair; if (!p) return;
   p[p.active + "Mode"] = mode;
-  if (mode) applyLabPairMode(); else labRenderPairDial();
+  applyLabPair(p.active);
 }
 function setLabPairLevel(level) {
   const p = window.labPair; if (!p) return;
   p[p.active + "Level"] = level;
-  if (p[p.active + "Mode"]) applyLabPairMode(); else labRenderPairDial();
+  applyLabPair(p.active);
 }
-async function applyLabPairMode() {
+function setLabPairSource(src) {
   const p = window.labPair; if (!p) return;
-  const side = p.active;
+  p[p.active + "Src"] = src;
+  applyLabPair(p.active);
+}
+
+/** Recompute one chord from its mode-fit settings: from its own root (chord-
+ *  scale) or as a degree inside the partner chord's key. */
+async function applyLabPairSide(side) {
+  const p = window.labPair; if (!p) return;
+  const src = p[side + "Src"] || "own";
+  const level = p[side + "Level"] || "13";
+  let res = null;
+  if (src === "partner") {
+    const other = side === "a" ? "b" : "a";
+    res = await api("/degree-chord", { method: "POST", body: JSON.stringify({ tonic: pairSplit(p[other]).root, mode: p[other + "Mode"] || "major", root: pairSplit(p[side]).root, type: level }) });
+  } else if (p[side + "Mode"]) {
+    res = await api("/mode-chord", { method: "POST", body: JSON.stringify({ root: pairSplit(p[side]).root, mode: p[side + "Mode"], type: level }) });
+  }
+  if (!window.labPair) return;
+  if (res) { p[side] = res.symbol; p[side + "Variants"] = res.variants || []; }
+  else p[side + "Variants"] = [];
+}
+
+/** Apply the changed side, then reactively refit the partner if it reads inside
+ *  this side's key, and refresh the mood. */
+async function applyLabPair(changed) {
   try {
-    const res = await api("/mode-chord", { method: "POST", body: JSON.stringify({ root: pairSplit(p[side]).root, mode: p[side + "Mode"], type: p[side + "Level"] || "13" }) });
-    if (!window.labPair) return;
-    p[side] = res.symbol;
-    labRenderPairDial(); refreshLabPair();
+    await applyLabPairSide(changed);
+    const other = changed === "a" ? "b" : "a";
+    if ((window.labPair || {})[other + "Src"] === "partner") await applyLabPairSide(other);
+    if (window.labPair) { labRenderPairDial(); refreshLabPair(); }
   } catch (error) { toast(error.message); }
 }
 
@@ -4516,10 +4538,21 @@ function labPairModeRow(side) {
       <span>Лад аккорда</span>
       <select onchange="setLabPairActive('${side}');setLabPairMode(this.value)">${PAIR_MODES.map(([v, l]) => `<option value="${v}" ${mode === v ? "selected" : ""}>${l}</option>`).join("")}</select>
     </label>
-    <label class="lab-pair-modefit">
-      <span>Ступени</span>
-      <select onchange="setLabPairActive('${side}');setLabPairLevel(this.value)">${PAIR_LEVELS.map(([v, l]) => `<option value="${v}" ${level === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+    <label class="lab-pair-modefit" title="Читать лад от собственной тоники аккорда (chord-scale) или как ступень в тональности партнёра">
+      <span>Лад от</span>
+      <select onchange="setLabPairActive('${side}');setLabPairSource(this.value)">${[["own", "своей тоники"], ["partner", "тональности партнёра"]].map(([v, l]) => `<option value="${v}" ${(p[side + "Src"] || "own") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
     </label>`;
+}
+
+/** Ready-made chords the mode offers at 7/9/11/13 — click one instead of a
+ *  numeric level. Shown only once a mode fit is active. */
+function labPairVariantsRow(side) {
+  const p = window.labPair;
+  const variants = p[side + "Variants"] || [];
+  if (!variants.length) return "";
+  const level = p[side + "Level"] || "13";
+  return `<div class="lab-pair-variants"><span class="lab-pair-variants-label">Аккорды лада</span>${variants.map(v =>
+    `<button type="button" class="${level === v.level ? "active" : ""}" onclick="setLabPairActive('${side}');setLabPairLevel('${v.level}')">${esc(v.symbol)}</button>`).join("")}</div>`;
 }
 
 function labRenderPairDial() {
@@ -4537,6 +4570,7 @@ function labRenderPairDial() {
           </div>
           ${labChordChipRow(p.active)}
           <div class="lab-pair-moderow">${labPairModeRow(p.active)}</div>
+          ${labPairVariantsRow(p.active)}
           <div id="lab-pair-mood" class="lab-pair-mood"></div>
           <div class="lab-pair-actions">
             <button type="button" class="lab-tool-btn" onclick="playLabPair()">▶ Сыграть пару</button>

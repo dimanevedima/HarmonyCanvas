@@ -1562,3 +1562,9 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 .lab-pair-modefit { display: grid; gap: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
 .lab-pair-modefit span { padding-left: 1px; }
 .lab-pair-modefit select { font-size: 12px; padding: 5px 7px; min-height: 32px; min-width: 118px; }
+
+.lab-pair-variants { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lab-pair-variants-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); margin-right: 2px; }
+.lab-pair-variants button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); cursor: pointer; font: inherit; font-size: 13px; }
+.lab-pair-variants button:hover { border-color: #83bdb5; background: #edf7f5; }
+.lab-pair-variants button.active { border-color: var(--purple); background: var(--purple); color: #fff; }

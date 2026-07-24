@@ -457,8 +457,25 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
             mode = str(payload.get("mode") or "major")
             ctype = str(payload.get("type") or "13")
             tonic_pc, intervals, flats = _mode_context(root, mode)
-            state = degree_state(tonic_pc, intervals, 0, flats, {"type": ctype})
-            self.send_json({"symbol": compose_symbol(state)})
+            build = lambda lv: compose_symbol(degree_state(tonic_pc, intervals, 0, flats, {"type": lv}))
+            self.send_json({"symbol": build(ctype), "variants": [{"level": lv, "symbol": build(lv)} for lv in ("7", "9", "11", "13")]})
+            return
+        if parts == ["api", "degree-chord"]:
+            # The diatonic chord whose root is `root`, read as a scale degree
+            # within `tonic` `mode` (chord B seen inside chord A's key).
+            from sidecar.harmony_engine import _mode_context, degree_state, compose_symbol, _root_pc
+            tonic = str(payload.get("tonic") or "C")
+            mode = str(payload.get("mode") or "major")
+            root = str(payload.get("root") or "C")
+            ctype = str(payload.get("type") or "13")
+            tonic_pc, intervals, flats = _mode_context(tonic, mode)
+            root_pc = _root_pc(root)
+            root_pc = tonic_pc if root_pc is None else root_pc
+            distance = (root_pc - tonic_pc) % 12
+            degree = intervals.index(distance) if distance in intervals else min(
+                range(7), key=lambda i: min((distance - intervals[i]) % 12, (intervals[i] - distance) % 12))
+            build = lambda lv: compose_symbol(degree_state(tonic_pc, intervals, degree, flats, {"type": lv}))
+            self.send_json({"symbol": build(ctype), "diatonic": distance in intervals, "variants": [{"level": lv, "symbol": build(lv)} for lv in ("7", "9", "11", "13")]})
             return
         if parts == ["api", "pair-mood"]:
             # Stateless: mood + voicing for any ordered chord pair (dial popup).
