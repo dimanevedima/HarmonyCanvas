@@ -19,6 +19,7 @@ from sidecar.harmony_engine import (
     apply_chord_edit,
     apply_note_edit,
     normalise_melody,
+    normalize_progression_text,
 )
 
 
@@ -203,6 +204,15 @@ class SketchStore:
             if sketch is None:
                 return None
             allowed = {"title", "tonic", "mode", "bpm", "meter", "chord_input", "chord_beats", "chord_starts", "melody", "notes"}
+            # Roman-numeral degrees (I V vi IV, bVII) are resolved to absolute
+            # chord symbols in the sketch's key on the way in, so stored
+            # chord_input is always plain symbols and the edit/analyze paths
+            # never see a numeral. Uses the tonic/mode from this same request
+            # when it changes them, otherwise the sketch's current key.
+            if "chord_input" in payload:
+                tonic = payload.get("tonic") or sketch.get("tonic") or "C"
+                mode = payload.get("mode") or sketch.get("mode") or "major"
+                payload = {**payload, "chord_input": normalize_progression_text(str(payload.get("chord_input") or ""), tonic, mode)}
             for key, value in payload.items():
                 if key not in allowed:
                     continue

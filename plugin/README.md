@@ -24,6 +24,28 @@ copies do not edit the same MIDI.
 Timeline playback intentionally lives in the processor rather than the editor.
 Destroying or hiding the editor must therefore not stop playback.
 
+## Play/Stop → Ableton transport
+
+Ableton Live denies VST3 plug-ins transport control: inside Live,
+`AudioPlayHead::canControlTransport()` is `false`, so `transportPlay()` in
+`processBlock` is silently dropped and the editor's Play button cannot start the
+host. Only the reverse direction (Live tempo/PPQ/play state → editor playhead)
+works from the plug-in itself.
+
+To let Play/Stop actually drive Live, run the AbletonJS bridge next to the
+plug-in. The editor POSTs each Play/Stop to the sidecar's `/api/transport`; the
+bridge watches that and calls Live's `start_playing` / `stop_playing`:
+
+```bash
+cd bridge
+npm install                 # first time only
+npm run transport:sync
+```
+
+Prerequisites: Live is open, and its **AbletonJS** control surface is enabled
+(Preferences → Link/MIDI → Control Surface = AbletonJS). Flags: `--host`,
+`--port` (sidecar, default `127.0.0.1:8787`) and `--poll-ms` (default `120`).
+
 ## Local build
 
 ```powershell

@@ -4161,8 +4161,11 @@ function labAnalysisHtml(advice) {
     const pair = item.pair;
     return `<li><b>${esc(item.from)} → ${esc(item.to)}</b><span>${esc(item.clock)}</span>${pair ? `<em style="--dial:${LAB_DIAL_COLORS[pair.category] || "#777"}">${esc(pair.category_name)}</em><small>${esc(pair.mood)}</small>` : `<small>${esc(item.move?.name || item.approx?.[0] || "вне таблицы 46 пар")}</small>`}</li>`;
   }).join("");
-  if (!advice.chords?.length) return `<section class="lab-analysis-empty"><strong>Анализ появится после ввода аккордов</strong><span>Выбранная тональность останется авторским контекстом.</span></section>`;
-  return `<section class="lab-analysis-panel"><div class="lab-analysis-head"><div><p class="eyebrow">HARMONY ANALYSIS</p><h3>Что слышно в материале</h3></div><span class="lab-analysis-status ${analysis.matches_declared ? "match" : "mismatch"}">${esc(status)}</span></div><div class="lab-analysis-grid"><article><small>ВЫБРАНО</small><strong>${esc(analysis.declared || advice.key.label)}</strong><span>${esc(advice.key.characteristic)}</span></article><article><small>РАСПОЗНАНО ПО АККОРДАМ</small><strong>${inferred ? `${esc(inferred.label)} · ${Math.round(inferred.score * 100)}%` : "Недостаточно материала"}</strong><span>${inferred ? esc(inferred.evidence) : "Добавьте хотя бы два аккорда"}</span>${alternatives ? `<details><summary>Другие гипотезы</summary>${alternatives}</details>` : ""}</article><article><small>КРАСКИ ЦИФЕРБЛАТА</small><div class="lab-color-list">${colors || `<span class="field-hint">Пары пока не распознаны</span>`}</div></article></div>${transitions ? `<details class="lab-transition-details"><summary>Переходы по циферблату · ${advice.transitions.length}</summary><ul>${transitions}</ul></details>` : ""}</section>`;
+  // Collapsed by default so the editor stays focused on writing; one click on
+  // the summary reveals the full key/dial breakdown when it is wanted.
+  if (!advice.chords?.length) return "";
+  const inner = `<div class="lab-analysis-grid"><article><small>ВЫБРАНО</small><strong>${esc(analysis.declared || advice.key.label)}</strong><span>${esc(advice.key.characteristic)}</span></article><article><small>РАСПОЗНАНО ПО АККОРДАМ</small><strong>${inferred ? `${esc(inferred.label)} · ${Math.round(inferred.score * 100)}%` : "Недостаточно материала"}</strong><span>${inferred ? esc(inferred.evidence) : "Добавьте хотя бы два аккорда"}</span>${alternatives ? `<details><summary>Другие гипотезы</summary>${alternatives}</details>` : ""}</article><article><small>КРАСКИ ЦИФЕРБЛАТА</small><div class="lab-color-list">${colors || `<span class="field-hint">Пары пока не распознаны</span>`}</div></article></div>${transitions ? `<details class="lab-transition-details"><summary>Переходы по циферблату · ${advice.transitions.length}</summary><ul>${transitions}</ul></details>` : ""}`;
+  return `<details class="panel lab-analysis-collapsible"><summary><span class="eyebrow">HARMONY ANALYSIS</span><span>Что слышно в материале</span><span class="lab-analysis-status ${analysis.matches_declared ? "match" : "mismatch"}">${esc(status)}</span></summary><div class="lab-analysis-panel">${inner}</div></details>`;
 }
 
 function labScaleHtml(advice) {
@@ -5101,13 +5104,69 @@ function labCompactToolbarHtml(sketch) {
     <label class="lab-meta-field lab-meter-field"><span class="lab-field-label">Размер</span><select id="lab-meter" onchange="patchLabContext({meter:this.value})">${LAB_METERS.map(item => `<option value="${item}" ${item === sketch.meter ? "selected" : ""}>${item}</option>`).join("")}</select></label>
     <div class="lab-tool-group lab-tool-panels" aria-label="Панели">
       <button type="button" id="lab-voices-btn" class="lab-tool-btn" onclick="toggleLabVoices()" aria-expanded="false" title="Голоса инструмента, MIDI-выход и микшер">Голоса</button>
+      <button type="button" class="lab-tool-btn" onclick="openLabChordText(this)" title="Ввести аккорды текстом — символами (Cmaj7 Am) или римскими ступенями (I V vi IV, bVII)">⌨ Аккорды</button>
       <button type="button" class="lab-tool-btn" onclick="exportLabMidi(this)" title="Экспорт MIDI: создаёт .mid по частям и открывает папку — файлы можно перетащить в DAW">↧ MIDI</button>
     </div>
-    <div class="lab-tool-group lab-tool-actions">
+    ${labInPlugin() ? "" : `<div class="lab-tool-group lab-tool-actions">
       ${labFocusMode() ? `<button type="button" class="lab-tool-btn" onclick="window.close()">Закрыть</button>` : `<button type="button" class="lab-tool-btn" onclick="openLabFocus()" title="Открыть редактор на весь экран">⤢</button>`}
       <button type="button" class="lab-tool-btn lab-tool-danger" onclick="deleteLabSketch()" title="Удалить эскиз">🗑</button>
-    </div>
+    </div>`}
     <span id="lab-save-state" class="lab-save-state lab-visually-hidden" aria-live="polite">сохранено</span>`;
+}
+
+/** True when the editor runs inside the JUCE/WebView2 plug-in — the native
+ * transport hooks are injected before page scripts run. Controls that only make
+ * sense in a standalone browser tab (close window, delete sketch) drop out. */
+function labInPlugin() {
+  return typeof window.harmonyCanvasSetPlaybackTimeline === "function";
+}
+
+// ── Text chord entry ────────────────────────────────────────────────────────
+// A modal for typing a whole progression: absolute symbols (Cmaj7 Am7 F) or
+// roman-numeral degrees (I V vi IV, bVII) resolved against the sketch's key.
+// The sidecar normalises numerals to symbols on save, so this only sends text.
+
+function openLabChordText() {
+  if (!currentSketchId) return;
+  const current = document.getElementById("lab-chords")?.value
+    ?? window.currentLabAdvice?.chord_input ?? "";
+  closeLabChordText();
+  const scrim = document.createElement("div");
+  scrim.id = "lab-chordtext-scrim";
+  scrim.className = "lab-modal-scrim";
+  scrim.innerHTML = `<div class="lab-modal" role="dialog" aria-modal="true" aria-label="Ввод аккордов текстом">
+    <div class="lab-modal-head"><strong>Аккорды текстом</strong><button type="button" class="lab-drawer-close" aria-label="Закрыть" onclick="closeLabChordText()">×</button></div>
+    <textarea id="lab-chordtext-input" rows="3" spellcheck="false" placeholder="Cmaj7 Am7 Dm7 G7    ·    I V vi IV    ·    i bVII bVI V">${esc(current)}</textarea>
+    <p class="field-hint">Разделяйте пробелом, тире или запятой. Понимает символы (<b>Cmaj7</b>, <b>Am/E</b>) и римские ступени в текущей тональности (<b>I&nbsp;V&nbsp;vi&nbsp;IV</b>, <b>bVII</b>) — ЗАГЛАВНЫЕ читаются как мажор, строчные как минор.</p>
+    <div class="lab-modal-foot"><button type="button" class="lab-tool-btn" onclick="closeLabChordText()">Отмена</button><button type="button" class="lab-tool-btn lab-tool-primary" onclick="applyLabChordText()">Применить</button></div>
+  </div>`;
+  scrim.addEventListener("click", event => { if (event.target === scrim) closeLabChordText(); });
+  document.body.appendChild(scrim);
+  const field = document.getElementById("lab-chordtext-input");
+  field?.focus();
+  field?.setSelectionRange(field.value.length, field.value.length);
+  field?.addEventListener("keydown", event => {
+    if (event.key === "Escape") { event.preventDefault(); closeLabChordText(); }
+    else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); applyLabChordText(); }
+  });
+}
+
+function closeLabChordText() {
+  document.getElementById("lab-chordtext-scrim")?.remove();
+}
+
+async function applyLabChordText() {
+  const field = document.getElementById("lab-chordtext-input");
+  if (!field) return;
+  const value = field.value.trim();
+  try {
+    await api(`/sketches/${currentSketchId}`, { method: "PATCH", body: JSON.stringify({ chord_input: value }) });
+    closeLabChordText();
+    window.labSelectedChordIndex = null;
+    window.labLastLocalEdit = Date.now();
+    await refreshLabAdvice();
+    toast("Аккорды обновлены");
+  } catch (error) { toast(error.message); }
 }
 
 // ── Slide-out drawers: chord palette and voices/mixer ───────────────────────
@@ -5841,6 +5900,10 @@ function labPlayScore(button, options = {}) {
   if (typeof window.harmonyCanvasSetPlaybackTimeline === "function" && !options.daw) {
     window.labAppPlaying = !window.labAppPlaying;
     if (typeof window.harmonyCanvasTransport === "function") window.harmonyCanvasTransport(window.labAppPlaying);
+    // Ableton denies VST3 plug-ins transport control, so the native call above
+    // is a no-op there. Also post to the sidecar: the ableton-js transport-sync
+    // bridge reads it and starts/stops Live's transport for us.
+    labPostTransport(window.labAppPlaying);
     document.querySelectorAll(".lab-tool-play").forEach(b => b.classList.toggle("is-playing", window.labAppPlaying));
     return;
   }
@@ -5901,6 +5964,7 @@ function labStopScore(button = null) {
   if (typeof window.harmonyCanvasTransport === "function") {
     window.labAppPlaying = false;
     window.harmonyCanvasTransport(false);
+    labPostTransport(false);   // ableton-js bridge stops Live's transport
   }
   ptmAudio.stopAll();
   document.querySelectorAll(".lab-playhead").forEach(head => { head.hidden = true; head.style.setProperty("--pos", 0); });

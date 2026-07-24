@@ -225,6 +225,53 @@ def parse_progression(text: str) -> list[dict]:
     return [chord for token in tokens if (chord := parse_chord(token))]
 
 
+# ── Roman-numeral degree input ──────────────────────────────────────────────
+# Text chord entry also accepts roman numerals (I V vi IV, bVII) so a
+# progression can be typed by function. Numerals are read against the major
+# scale the way classic roman analysis does — accidentals in the token (b/#)
+# cover every chromatic degree — then resolved to an absolute symbol in the
+# sketch's key, so the rest of the pipeline only ever handles plain symbols.
+
+_ROMAN_STEP = {1: 0, 2: 2, 3: 4, 4: 5, 5: 7, 6: 9, 7: 11}
+_ROMAN_NUMERALS = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7}
+_ROMAN_RE = re.compile(r"^([b#]*)([ivIV]+)(.*)$")
+
+
+def roman_to_symbol(token: str, tonic: str = "C", mode: str = "major") -> str | None:
+    """Resolve a roman-numeral degree (`V7`, `vi`, `bVII`) into an absolute chord
+    symbol in `tonic`/`mode`. Returns None when the token is not a roman numeral,
+    so an absolute symbol such as `Am7` is left untouched for `parse_chord`."""
+    match = _ROMAN_RE.match(token.strip())
+    if not match:
+        return None
+    accidentals, letters, rest = match.group(1), match.group(2), match.group(3)
+    degree = _ROMAN_NUMERALS.get(letters.lower())
+    if degree is None:
+        return None
+    tonic_pc, _intervals, flats = _mode_context(tonic, mode)
+    shift = accidentals.count("#") - accidentals.count("b")
+    root_pc = (tonic_pc + _ROMAN_STEP[degree] + shift) % 12
+    if "#" in accidentals:
+        names = PC_SHARP
+    elif "b" in accidentals:
+        names = PC_FLAT
+    else:
+        names = PC_FLAT if flats else PC_SHARP
+    # A lowercase numeral defaults to a minor triad; a quality already spelled in
+    # `rest` (dim, sus, maj…) is taken as written, while a bare extension (7, 9…)
+    # stacks onto the minor third.
+    inject_minor = letters.islower() and (rest == "" or rest[0].isdigit())
+    symbol = names[root_pc] + ("m" if inject_minor else "") + rest
+    return symbol if parse_chord(symbol) else None
+
+
+def normalize_progression_text(text: str, tonic: str = "C", mode: str = "major") -> str:
+    """Rewrite roman-numeral tokens in a progression into absolute symbols,
+    leaving absolute symbols (and anything unparseable) as they were."""
+    tokens = [item for item in re.split(r"\s*(?:→|—|–|\||,|;)\s*|\s+", text.strip()) if item]
+    return " ".join(roman_to_symbol(token, tonic, mode) or token for token in tokens)
+
+
 def _degree(root_pc: int, tonic_pc: int, intervals: list[int]) -> tuple[str, int]:
     distance = (root_pc - tonic_pc) % 12
     if distance in intervals:

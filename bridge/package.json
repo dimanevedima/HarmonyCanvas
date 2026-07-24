@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "pull:selected": "node pull-selected-clip.mjs",
-    "check": "node --check pull-selected-clip.mjs",
+    "transport:sync": "node transport-sync.mjs",
+    "check": "node --check pull-selected-clip.mjs && node --check transport-sync.mjs",
     "test": "node --test test-protocol.mjs"
   },
   "dependencies": {

@@ -13,7 +13,34 @@ from sidecar.harmony_engine import (
     option_availability,
     parse_chord,
     parse_progression,
+    normalize_progression_text,
+    roman_to_symbol,
 )
+
+
+def test_roman_numerals_resolve_against_the_sketch_key():
+    assert roman_to_symbol("I", "C", "major") == "C"
+    assert roman_to_symbol("V7", "C", "major") == "G7"
+    assert roman_to_symbol("vi", "C", "major") == "Am"
+    assert roman_to_symbol("ii7", "C", "major") == "Dm7"
+    assert roman_to_symbol("bVII", "C", "major") == "Bb"
+    assert roman_to_symbol("IVmaj7", "C", "major") == "Fmaj7"
+    # Minor key: the tonic is minor, a written V stays major (the usual dominant).
+    assert roman_to_symbol("i", "A", "minor") == "Am"
+    assert roman_to_symbol("bVI", "A", "minor") == "F"
+    assert roman_to_symbol("V", "A", "minor") == "E"
+
+
+def test_absolute_symbols_are_left_for_parse_chord():
+    assert roman_to_symbol("Am7", "C", "major") is None
+    assert roman_to_symbol("Bbmaj13/D", "C", "major") is None
+
+
+def test_normalize_mixes_roman_and_absolute_tokens():
+    assert normalize_progression_text("I V vi IV", "C", "major") == "C G Am F"
+    assert normalize_progression_text("i bVII bVI V", "A", "minor") == "Am G F E"
+    # Absolute symbols and separators pass through untouched.
+    assert normalize_progression_text("C G Am7 F | bVII", "C", "major") == "C G Am7 F Bb"
 
 
 def test_pitches_are_stored_as_midi_so_nothing_is_rounded_to_the_scale():

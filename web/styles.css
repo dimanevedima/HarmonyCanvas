@@ -948,7 +948,7 @@ dialog #toast { position: absolute; right: 20px; bottom: 20px; }
 .lab-sketch-link.active { background: #fff; border-color: #7fbeb6; box-shadow: 0 2px 8px rgba(35,105,95,.08); }
 .lab-sketch-link strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lab-sketch-link small { color: var(--muted); }
-.lab-workspace { min-width: 0; display: grid; gap: 16px; }
+.lab-workspace { min-width: 0; display: grid; gap: 12px; }
 .lab-editor { padding: 16px; }
 .lab-editor-head, .lab-head-actions, .lab-source-policy { display: flex; gap: 9px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .lab-editor-head h2 { margin: 1px 0 0; }
@@ -1153,14 +1153,17 @@ body.lab-focus .lab-score { max-height: calc(100vh - 250px); }
 .lab-text-inputs[open] { display: grid; gap: 10px; }
 
 /* Toolbar: one compact row of global controls, the way a DAW header reads. */
-.lab-toolbar { display: flex; align-items: flex-end; gap: 7px; flex-wrap: wrap; padding: 6px 9px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+/* Thin single-row transport strip: every control shares one 34px height and the
+ * per-field text labels are dropped, so nothing jumps and the bar stays compact. */
+.lab-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 5px 8px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
 .lab-toolbar .lab-meta-field, .lab-toolbar .lab-tonic-field, .lab-toolbar .lab-bpm-field { margin: 0; }
-.lab-toolbar .lab-field-label { font-size: 9px; margin-bottom: 1px; }
-.lab-toolbar .lab-tonic-field { width: 78px; }
+.lab-toolbar .lab-field-label { display: none; }
+.lab-toolbar .lab-tonic-trigger { min-height: 34px; padding: 4px 9px; }
+.lab-toolbar .lab-tonic-field { width: 92px; }
 .lab-toolbar .lab-mode-field { flex: 1 1 150px; min-width: 130px; max-width: 220px; }
-.lab-toolbar .lab-bpm-field { width: 84px; }
+.lab-toolbar .lab-bpm-field { width: 88px; }
 .lab-toolbar .lab-meter-field { width: 70px; }
-.lab-toolbar select { width: 100%; min-height: 34px; padding-block: 5px; }
+.lab-toolbar select { width: 100%; height: 34px; min-height: 34px; padding-block: 5px; }
 .lab-tool-group { display: flex; align-items: center; gap: 6px; }
 .lab-tool-panels { margin-left: auto; }
 .lab-tool-actions { margin-left: 0; }
@@ -1450,6 +1453,27 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 .lab-drawer .lab-voices-bar { flex-direction: column; align-items: stretch; gap: 16px; padding: 0; background: transparent; border: 0; }
 .lab-drawer .lab-voices-out { margin-left: 0; }
 @media (prefers-reduced-motion: reduce) { .lab-drawer { animation: none; } }
+
+/* Text chord-entry modal */
+.lab-modal-scrim { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 20px; background: rgba(20, 22, 20, .34); }
+.lab-modal { width: min(560px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 44px rgba(23,24,22,.28); padding: 16px 18px; }
+.lab-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.lab-modal-head strong { font-size: 16px; }
+.lab-modal textarea { width: 100%; min-height: 78px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); font: inherit; font-size: 15px; resize: vertical; }
+.lab-modal textarea:focus-visible { outline: 2px solid #23695f; outline-offset: 1px; }
+.lab-modal .field-hint { margin: 9px 2px 0; line-height: 1.5; }
+.lab-modal-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.lab-tool-btn.lab-tool-primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.lab-tool-btn.lab-tool-primary:hover { background: #000; border-color: #000; }
+
+/* Collapsed harmony-analysis summary: a thin one-line strip until expanded. */
+.lab-analysis-collapsible { padding: 0; }
+.lab-analysis-collapsible > summary { display: flex; align-items: center; gap: 12px; padding: 9px 14px; cursor: pointer; list-style: none; }
+.lab-analysis-collapsible > summary::-webkit-details-marker { display: none; }
+.lab-analysis-collapsible > summary .eyebrow { color: var(--muted); }
+.lab-analysis-collapsible > summary .lab-analysis-status { margin-left: auto; }
+.lab-analysis-collapsible[open] > summary { border-bottom: 1px solid var(--line); }
+.lab-analysis-collapsible .lab-analysis-panel { border: 0; padding: 12px 14px 14px; }
 
 /* Chord blocks carry no buttons: drag the body, drag the edge, click to hear. */
 .lab-lane-chord:active { cursor: grabbing; }
