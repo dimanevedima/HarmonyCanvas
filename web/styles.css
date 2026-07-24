@@ -433,8 +433,12 @@ to { background-position: -200% 0; }
 .lab-rollctl-zoom { display: inline-flex; align-items: center; gap: 4px; align-self: flex-end; margin-bottom: 1px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
 .lab-rollctl-zoom button { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-size: 16px; line-height: 1; cursor: pointer; }
 .lab-rollctl-zoom button:hover { border-color: #83bdb5; background: #edf7f5; }
-.lab-score { --beat: 40px; --row: 20px; --label: 66px; max-height: min(62vh, 620px); border: 1px solid var(--line); border-radius: 12px; overflow: auto; background: var(--card); padding-bottom: 2px; }
-body.lab-focus .lab-score { max-height: calc(100vh - 250px); }
+/* No vertical scroll: the register selector (--octave) already keeps the
+ * melody grid to a fixed, bounded row count, so it always fits — the whole
+ * point being that a note edit can never make the grid jump-scroll under the
+ * user. `overflow: auto` still does its job on the horizontal axis, for a
+ * sketch wider than the panel. */
+.lab-score { --beat: 40px; --row: 20px; --label: 66px; border: 1px solid var(--line); border-radius: 12px; overflow: auto; background: var(--card); padding-bottom: 2px; }
 .lab-score .lab-row-track { position: relative; flex: 0 0 calc(var(--beat) * var(--beats)); height: 100%; }
 .lab-ruler, .lab-row, .lab-lane-row { display: flex; align-items: stretch; min-width: min-content; }
 .lab-ruler { height: 22px; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; background: var(--card); }
