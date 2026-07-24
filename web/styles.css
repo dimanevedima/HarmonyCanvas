@@ -120,6 +120,7 @@ to { background-position: -200% 0; }
 .midi-parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 7px; }
 .midi-part { min-width: 0; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 11px; background: white; cursor: pointer; }
 .midi-part:has(input:focus-visible) { outline: 3px solid #6f55e844; outline-offset: 1px; }
+.midi-part.is-drums { background: #f1f0eb; color: #77786f; cursor: default; }
 .midi-part-main { min-width: 0; }
 .midi-part-main strong, .midi-part-main small, .midi-role b, .midi-role small { display: block; }
 .midi-part-main strong { overflow-wrap: anywhere; font-size: 12px; line-height: 1.3; }
@@ -130,6 +131,7 @@ to { background-position: -200% 0; }
 .midi-hypotheses { display: grid; grid-template-columns: minmax(190px, 1.2fr) minmax(220px, 1fr); gap: 8px; }
 .midi-alternatives { display: grid; gap: 8px; }
 .midi-hypothesis { border: 1px solid var(--line); border-radius: 12px; padding: 10px 11px; background: white; }
+.midi-hypothesis.is-primary { border-color: #9ccec5; background: #edf7f5; }
 .midi-hypothesis-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
 .midi-hypothesis-head strong { font-size: 13px; }
 .midi-hypothesis-head span { flex: 0 0 auto; font-size: 11px; font-weight: 800; color: #176b62; font-variant-numeric: tabular-nums; }
@@ -191,6 +193,7 @@ to { background-position: -200% 0; }
 .midi-window i { position: absolute; left: 0; bottom: 0; width: var(--w); height: 2px; background: #2b8f83; }
 .midi-chords { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 7px; }
 .midi-chord { min-width: 0; padding: 9px 10px; border: 1px solid #cfdedb; border-radius: 11px; background: #fff; }
+.midi-chord.is-empty { border-style: dashed; color: var(--muted); background: #f4f3ef; }
 .midi-chord-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .midi-chord-head strong { overflow-wrap: anywhere; color: #184f49; font-size: 14px; }
 .midi-chord-head span { flex: 0 0 auto; color: #2b746b; font-size: 9px; font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -391,6 +394,7 @@ to { background-position: -200% 0; }
 .lab-option-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 7px; }
 .lab-option-grid label { display: flex; align-items: center; gap: 4px; margin: 0; color: #e1e3dd; font-size: 10px; font-weight: 500; }
 .lab-option-grid input { width: 15px; height: 15px; accent-color: #5fa9ed; }
+.lab-option-grid label.is-disabled { opacity: .35; cursor: not-allowed; }
 /* Palette borrowed from another mode: hatched, the way Hookpad marks it. */
 .lab-palette-head i { font-style: normal; opacity: .6; }
 .lab-palette-mode { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); margin: 0; }
@@ -415,6 +419,7 @@ to { background-position: -200% 0; }
    one tight wrapping row, no stretched captions. */
 .lab-palette { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .lab-palette .lab-palette-hint { margin: 0; flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--muted); background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.lab-palette .lab-palette-hint.is-replace { color: var(--purple); background: color-mix(in srgb, var(--purple) 12%, transparent); }
 .lab-palette .lab-palette-mode { flex: none; display: inline-flex; font-size: 11px; padding: 4px 6px; max-width: 160px; }
 .lab-palette .lab-palette-row { flex: 1 1 auto; min-width: 0; }
 .lab-score-panel { margin: 0; }
@@ -589,6 +594,7 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 .lab-cell-main strong { font-size: 12px; }
 .lab-cell-main em { font-style: normal; font-size: 9px; color: var(--muted); }
 .lab-cell-main i { font-style: normal; font-size: 8px; color: var(--muted); text-transform: uppercase; }
+.lab-cell.is-borrowed { background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--deg) 13%, transparent) 0 5px, transparent 5px 10px); }
 .lab-cell-bar { position: absolute; left: 0; bottom: 0; height: 2px; width: var(--weight); background: var(--deg); }
 /* Timeline chords carry the same degree colour. */
 .lab-lane-chord.selected { border-color: var(--deg); box-shadow: inset 0 0 0 2px var(--deg); }
@@ -606,7 +612,16 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 .lab-row .lab-row-track { background-color: color-mix(in srgb, var(--deg, var(--line)) 7%, transparent); }
 /* Out-of-scale row lanes get a faint diagonal hatch in their chroma colour, on
    top of the usual bar/beat/snap grid lines, so they read as non-diatonic. */
+.lab-row.is-chromatic .lab-row-track {
+  background-color: color-mix(in srgb, var(--deg, var(--ink)) 6%, transparent);
+  background-image:
+    repeating-linear-gradient(135deg, color-mix(in srgb, var(--deg) 12%, transparent) 0 4px, transparent 4px 8px),
+    repeating-linear-gradient(to right, var(--grid-bar) 0 1px, transparent 1px calc(var(--beat) * var(--bar, 4))),
+    repeating-linear-gradient(to right, var(--grid-beat) 0 1px, transparent 1px var(--beat)),
+    repeating-linear-gradient(to right, var(--grid-sub) 0 1px, transparent 1px calc(var(--beat) * var(--snap, 0.5)));
+}
 .lab-row-label b { font-weight: 700; color: var(--deg, var(--ink)); min-width: 24px; }
+.lab-row.is-chromatic .lab-row-label b { color: #a8aaa4; font-weight: 400; }
 .lab-row-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--deg, var(--purple)); margin-left: auto;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--deg, var(--purple)) 35%, white); }
 /* The scale remains the quiet full-width background. Chord membership is a
@@ -619,6 +634,12 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
   border-top: 1px solid color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 58%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 58%, transparent);
   box-shadow: inset 2px 0 0 color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 72%, transparent); }
+.lab-chord-tone-band.is-outside {
+  background-color: color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 17%, transparent);
+  background-image: repeating-linear-gradient(135deg,
+    color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 34%, transparent) 0 4px,
+    transparent 4px 8px);
+  border-block-color: color-mix(in srgb, var(--chord-deg, var(--deg, var(--purple))) 72%, transparent); }
 .lab-chord-tone-band > b { position: absolute; left: 3px; top: 50%; transform: translateY(-50%);
   min-width: 13px; padding: 1px 3px; border-radius: 4px;
   background: color-mix(in srgb, var(--card) 78%, transparent);
@@ -626,10 +647,16 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
   font-size: 8px; line-height: 1.15; font-weight: 800; text-align: center;
   font-variant-numeric: tabular-nums; opacity: .86; }
 .lab-note { position: absolute; top: 2px; bottom: 2px; left: calc(var(--start) * var(--beat)); width: calc(var(--len) * var(--beat) - 2px); border-radius: 3px; background: color-mix(in srgb, var(--deg, var(--ink)) 55%, var(--ink)); cursor: grab; touch-action: none; }
+.lab-note.is-chord-tone { background: var(--deg, var(--purple)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35); }
 .lab-note.selected { outline: 2px solid var(--ink); outline-offset: 1px; z-index: 3; }
 /* Inactive voices: visible but greyed, non-interactive, behind the active one. */
+.lab-note.is-inactive { background: color-mix(in srgb, var(--ink) 24%, transparent) !important; opacity: .48; pointer-events: none; box-shadow: none !important; z-index: 0; }
+.lab-note.is-inactive.is-outside { background: repeating-linear-gradient(135deg,
+    color-mix(in srgb, var(--ink) 34%, transparent) 0 4px,
+    color-mix(in srgb, var(--ink) 10%, transparent) 4px 8px) !important; }
 .lab-note-voice { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); font-size: 8px; line-height: 1;
   font-weight: 700; color: rgba(255, 255, 255, .82); pointer-events: none; }
+.lab-note.is-inactive .lab-note-voice { color: color-mix(in srgb, var(--ink) 55%, transparent); }
 /* Voice picker and MIDI output routing bar under the toolbar. */
 .lab-voice-1 { --voice: #2f9ed6; }
 .lab-voice-2 { --voice: #5da648; }
@@ -657,6 +684,9 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 .lab-out-chip small { font-size: 9px; color: var(--muted); }
 .lab-out-chip:hover { border-color: color-mix(in srgb, var(--voice) 45%, var(--line)); }
 .lab-out-chip:focus-visible { outline: 2px solid #23695f; outline-offset: 2px; }
+.lab-out-chip.is-muted { opacity: .42; }
+.lab-out-chip.is-muted span { text-decoration: line-through; }
+.lab-out-chip.is-muted::before { background: var(--muted); }
 /* Shared-sketch picker for multi-instance routing. */
 .lab-share { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); }
 .lab-share select { min-height: 30px; max-width: 220px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); font: inherit; font-size: 11px; padding: 2px 6px; }
@@ -718,6 +748,8 @@ to { transform: none; opacity: 1; }
 .lab-lane-chord:active { cursor: grabbing; }
 /* Out-of-scale (borrowed/chromatic) chords: hatched in their own chroma colour,
    theory-based rather than a flat grey. */
+.lab-lane-chord.is-outside { background-image: repeating-linear-gradient(135deg,
+  color-mix(in srgb, var(--deg) 24%, white) 0 6px, color-mix(in srgb, var(--deg) 7%, white) 6px 12px); }
 /* Loop band in the ruler, and the marquee used to rubber-band notes. */
 .lab-ruler .lab-row-track { cursor: crosshair; }
 .lab-loop { position: absolute; top: 0; height: 20px; left: calc(var(--from) * var(--beat)); width: calc(var(--len) * var(--beat)); background: color-mix(in srgb, var(--acid) 55%, transparent); border-left: 2px solid #8a9c1f; border-right: 2px solid #8a9c1f; z-index: 2; }
@@ -748,6 +780,10 @@ to { transform: none; opacity: 1; }
 .lab-score .lab-row-label { flex: 0 0 var(--label); position: sticky; left: 0; z-index: 2; background: var(--card);
   display: flex; align-items: center; gap: 5px; padding: 0 6px; font-size: 10px; color: var(--muted);
   border-right: 1px solid var(--line); white-space: nowrap; overflow: hidden; }
+.lab-row.is-chromatic .lab-row-label small { color: #b0b2ac; font-size: 9px; }
+.lab-note.is-outside { background: repeating-linear-gradient(135deg,
+    color-mix(in srgb, var(--deg, var(--ink)) 85%, transparent) 0 4px,
+    color-mix(in srgb, var(--deg, var(--ink)) 22%, white) 4px 8px); }
 /* ── Timeline grid: a beat line everywhere, a stronger line on each bar ──── */
 .lab-score { --grid-beat: color-mix(in srgb, var(--ink) 8%, transparent); --grid-bar: color-mix(in srgb, var(--ink) 26%, transparent); --grid-sub: color-mix(in srgb, var(--ink) 4%, transparent); }
 /* Three layers: bar line (strong), beat line, and a faint subdivision at the
@@ -796,6 +832,8 @@ to { transform: none; opacity: 1; }
 .lab-pair-min { left: calc(50% - 22px); top: calc(50% - 13px); width: 44px; height: 26px; font-size: 11px; color: var(--muted);
   transform: rotate(var(--angle)) translateY(-96px) rotate(var(--counter)); }
 .lab-pair-maj:hover, .lab-pair-min:hover { background: color-mix(in srgb, var(--purple) 14%, transparent); }
+.lab-pair-maj.is-a, .lab-pair-min.is-a { border-color: var(--ink); color: var(--ink); }
+.lab-pair-maj.is-b, .lab-pair-min.is-b { background: var(--purple); color: #fff; border-color: var(--purple); }
 .lab-pair-center { position: absolute; inset: 34%; border-radius: 50%; background: var(--card); border: 1px solid var(--line);
   display: grid; place-items: center; align-content: center; box-shadow: inset 0 1px 6px rgba(20, 22, 20, .08); }
 .lab-pair-center b { font-size: 26px; color: var(--purple); font-variant-numeric: tabular-nums; }
