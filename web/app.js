@@ -4196,6 +4196,11 @@ function labScoreSpan(advice = window.currentLabAdvice) {
   return Math.max(beatsPerBar, Math.ceil(raw / beatsPerBar) * beatsPerBar);
 }
 
+// Colour by tonic-relative pitch class (0-11), so borrowed/out-of-scale notes
+// and chords read by their real pitch instead of falling back to grey.
+function labChromaStyle(chroma) { return chroma === null || chroma === undefined ? "" : `--deg:var(--chroma-${chroma});`; }
+function labChromaColor(chroma) { return chroma === null || chroma === undefined ? "var(--deg-1)" : `var(--chroma-${chroma})`; }
+
 function labScoreHtml(advice) {
   const timeline = advice.timeline || { beats_per_bar: 4, total_beats: 16, bars: 4, chromatic: false };
   window.labGridRows = (advice.melody_grid || []).map(row => row.midi);
@@ -4221,11 +4226,11 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
     `<span class="lab-bar" style="--at:${bar * beatsPerBar};--span:${beatsPerBar}">${firstBar + bar + 1}</span>`).join("");
 
   const rows = grid.map(row => {
-    const deg = row.degree_index === null || row.degree_index === undefined ? "" : `--deg:var(--deg-${row.degree_index + 1});`;
+    const deg = labChromaStyle(row.chroma);
     const notes = (advice.melody || []).map((note, index) => [note, index])
       .filter(([note]) => note.pitch === row.midi && inSystem(note.start))
       .map(([note, index]) => {
-        const noteDeg = note.degree_index === null || note.degree_index === undefined ? "" : `--deg:var(--deg-${note.degree_index + 1});`;
+        const noteDeg = labChromaStyle(note.chroma);
         const voice = note.voice || 1;
         const inactive = voice !== activeVoice;
         // Inactive voices stay visible but grey and get no pointer handler, so
@@ -4243,7 +4248,7 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
   // click to hear it. No buttons to squeeze into a one-beat card.
   const lane = (advice.chords || []).map((chord, index) => [chord, index])
     .filter(([chord]) => inSystem(chord.start))
-    .map(([chord, index]) => `<article class="lab-lane-chord ${index === window.labSelectedChordIndex ? "selected" : ""}" style="--start:${chord.start - offset};--len:${chord.beats};--deg:var(--deg-${(chord.degree_index ?? 0) + 1})" data-chord="${index}" onpointerdown="labChordPointerDown(event,${index})" title="${esc(chord.symbol)} · ${esc(chord.degree)} · ${chord.beats} доли — тяните, чтобы двигать; за края — растянуть">
+    .map(([chord, index]) => `<article class="lab-lane-chord ${index === window.labSelectedChordIndex ? "selected" : ""} ${chord.diatonic === false ? "is-outside" : ""}" style="--start:${chord.start - offset};--len:${chord.beats};--deg:${labChromaColor(chord.chroma)}" data-chord="${index}" onpointerdown="labChordPointerDown(event,${index})" title="${esc(chord.symbol)} · ${esc(chord.degree)} · ${chord.beats} доли — тяните, чтобы двигать; за края — растянуть">
       <b class="lab-chord-grip lab-chord-grip-left"></b>
       <span class="lab-lane-name"><b>${esc(chord.degree)}</b><strong>${esc(chord.symbol)}</strong></span>
       <b class="lab-chord-grip lab-chord-grip-right"></b></article>`).join("");
@@ -4946,7 +4951,7 @@ function labChordPaletteHtml(advice) {
 
 /** One compact, degree-coloured cell: play on the left, insert on the right. */
 function labChordCellHtml(item, degreeIndex, context = {}) {
-  return `<span class="lab-cell ${item.borrowed ? "is-borrowed" : ""}" style="--deg:var(--deg-${(degreeIndex ?? 0) + 1})">
+  return `<span class="lab-cell ${item.borrowed ? "is-borrowed" : ""}" style="--deg:${labChromaColor(item.chroma)}">
     <button type="button" class="lab-cell-play" onclick="labPlay([[${item.midi.join(",")}]],this)" aria-label="Проиграть ${esc(item.symbol)}" title="Проиграть">▶</button>
     <button type="button" class="lab-cell-main" onpointerdown="labChordDragStart(event, '${esc(item.symbol)}', [${item.midi.join(",")}])" title="${esc(item.symbol)} — клик проиграет и добавит, перетащите на гармонию">
       <b>${esc(item.degree)}</b><strong>${esc(item.symbol)}</strong>${item.borrowed ? `<i>${esc((context.label || "").slice(0, 3))}</i>` : ""}

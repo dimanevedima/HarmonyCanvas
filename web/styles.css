@@ -15,6 +15,21 @@
   --deg-5: #2f8fd6;
   --deg-6: #7c5ad4;
   --deg-7: #c04aa8;
+  /* 12-hue chromatic wheel, tonic-relative. Diatonic degrees (0,2,4,5,7,9,11)
+     match --deg-1..7; the five chromatic steps get their own in-between hues,
+     so a borrowed/out-of-scale chord or note reads by its real pitch, not grey. */
+  --chroma-0: #d2483f;
+  --chroma-1: #db6a30;
+  --chroma-2: #d97f26;
+  --chroma-3: #c39024;
+  --chroma-4: #b39a1f;
+  --chroma-5: #4f9e34;
+  --chroma-6: #2ba389;
+  --chroma-7: #2f8fd6;
+  --chroma-8: #4f6fd8;
+  --chroma-9: #7c5ad4;
+  --chroma-10: #a852c4;
+  --chroma-11: #c04aa8;
 }
 
 * { box-sizing: border-box; }
@@ -1317,7 +1332,7 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 
 .lab-row { height: var(--row, 20px); border-bottom: 1px solid color-mix(in srgb, var(--line) 40%, transparent); }
 .lab-row .lab-row-track { background-color: color-mix(in srgb, var(--deg, var(--line)) 7%, transparent); }
-.lab-row.is-chromatic .lab-row-track { background-color: color-mix(in srgb, var(--ink) 5%, transparent); }
+.lab-row.is-chromatic .lab-row-track { background-color: color-mix(in srgb, var(--deg, var(--ink)) 6%, transparent); }
 .lab-row.is-chord-tone .lab-row-track { background-color: color-mix(in srgb, var(--deg, var(--purple)) 17%, transparent); }
 .lab-row-label b { font-weight: 700; color: var(--deg, var(--ink)); min-width: 24px; }
 .lab-row.is-chromatic .lab-row-label b { color: #a8aaa4; font-weight: 400; }
@@ -1406,6 +1421,10 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 
 /* Chord blocks carry no buttons: drag the body, drag the edge, click to hear. */
 .lab-lane-chord:active { cursor: grabbing; }
+/* Out-of-scale (borrowed/chromatic) chords: hatched in their own chroma colour,
+   theory-based rather than a flat grey. */
+.lab-lane-chord.is-outside { background-image: repeating-linear-gradient(135deg,
+  color-mix(in srgb, var(--deg) 24%, white) 0 6px, color-mix(in srgb, var(--deg) 7%, white) 6px 12px); }
 
 /* Loop band in the ruler, and the marquee used to rubber-band notes. */
 .lab-ruler .lab-row-track { cursor: crosshair; }

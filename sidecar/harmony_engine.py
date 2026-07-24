@@ -399,6 +399,7 @@ def melody_grid(tonic_pc: int, intervals: list[int], flats: bool, *, chromatic: 
             "midi": midi,
             "name": f"{names[midi % 12]}{midi // 12 - 1}",
             "pitch_class": midi % 12,
+            "chroma": distance,
             "degree": degree_label(distance, intervals),
             "degree_index": degree_position(distance, intervals),
             "in_scale": in_scale,
@@ -522,6 +523,7 @@ def annotate_melody(notes: list[dict], chords: list[dict], tonic_pc: int, interv
             "name": f"{names[note['pitch'] % 12]}{note['pitch'] // 12 - 1}",
             "degree": degree_label(distance, intervals),
             "degree_index": degree_position(distance, intervals),
+            "chroma": distance,
             "in_scale": distance in intervals,
             "chord_tone": (note["pitch"] % 12) in chord_tones,
             "chord_symbol": chord["symbol"] if chord else None,
@@ -833,6 +835,7 @@ def analyze_sketch(*, chord_input: str, tonic: str, mode: str, melody: list[dict
         bass_degree, _ = _degree(_root_pc(chord["bass"]), tonic_pc, intervals)
         chord["bass_degree"] = bass_degree if chord["bass_pc"] != chord["root_pc"] else None
         chord["diatonic"] = (chord["root_pc"] - tonic_pc) % 12 in intervals
+        chord["chroma"] = (chord["root_pc"] - tonic_pc) % 12
         chord["degree_index"] = index
         chord["diatonic_symbol"] = _diatonic_chord(tonic_pc, intervals, index, flats)
 
@@ -901,6 +904,7 @@ def analyze_sketch(*, chord_input: str, tonic: str, mode: str, melody: list[dict
             "symbol": symbol,
             "degree": label,
             "degree_index": degree,
+            "chroma": (parsed["root_pc"] - tonic_pc) % 12 if parsed else None,
             "borrowed": borrowed,
             "secondary": template.get("secondary"),
             "midi": parsed["midi"] if parsed else [],
