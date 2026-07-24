@@ -8,7 +8,7 @@ The goal is a Hookpad-like workflow inside Live: write melodies, bass lines and
 additional voices over a changing chord progression while the piano roll shows
 the harmonic role of every pitch.
 
-> Current state (22 July 2026): working Windows prototype tested in Ableton Live
+> Current state (24 July 2026): working Windows prototype tested in Ableton Live
 > 12.4.3. This is not yet a distributable release.
 
 ## What works now
@@ -35,6 +35,74 @@ MIDI BRIDGE — Monitor In
     ↓ MIDI To
 INSTRUMENT / RECORDING TRACK
 ```
+
+## Harmony Lab editor
+
+The embedded editor is a single continuous piano-roll lane (webaudio-pianoroll
+feel) with a harmony lane below it.
+
+**Piano roll**
+- one horizontal lane that scrolls both ways; sticky ruler, note labels and
+  harmony lane;
+- a top control strip that switches by context: click the harmony lane → the
+  chord palette; click the roll → the note menu (default note length, melody
+  **range**, snap grid, **chromatic** toggle, horizontal **zoom**);
+- notes are coloured by tonic-relative pitch class (12-hue chroma); out-of-scale
+  rows, notes and chords are hatched in their real colour, never flat grey;
+- a note added off-scale stays visible even with the chromatic view off.
+
+**Notes**
+- click empty grid = add a note at the default length; drag the body to move,
+  the right edge to resize;
+- right-click deletes a note; Shift-drag rubber-bands a multi-note selection;
+- note lengths down to 1/16.
+
+**Chords**
+- drag a palette chord onto the lane, or double-click to open the palette;
+- chord blocks move freely and resize from **either** edge; dropping over another
+  chord trims it (DAW-style); right-click deletes;
+- the chord inspector edits root/type/quality/inversion/options/secondary and
+  reads the degree in any borrowed mode; extended chords are spelled
+  mode-correctly (IV13 in C major → `Fmaj13(#11)`, the same in Dorian → `F13`).
+
+**Selection, copy/paste** — `Ctrl+C / Ctrl+X / Ctrl+V` on the whole selection,
+`Ctrl+A` to select all. Notes tile forward on paste and stay selected; a chord
+range (Shift+click) pastes at a caret dropped on the harmony lane (everything
+after shifts to make room) or appends at the end.
+
+**MIDI export** — the `↧ MIDI` button writes one `.mid` per part (chords + each
+voice) into a folder and opens it, so the files can be dragged into the DAW.
+
+### Chord-pair mood dial
+
+Double-click a chord in the harmony lane to open a circle-of-fifths dial that
+reads the **mood of the transition** A → B, extending Levashov's 46 modal chord
+pairs (ПТМ) to any chord — dim/aug, extensions and same-root colour moves — via
+a layered affect model. See [the mood model spec](docs/MOOD_MODEL_SPEC.md).
+
+- chord A sits at 12 o'clock (hour hand); B is the purple minute hand; the
+  centre shows the clock time (`12:MM`);
+- pick B's root+quality on the wheel or refine either chord with quality chips;
+- **Лад аккорда** fits the chord to a mode's characteristic sound from its own
+  root (Dorian → `Cm13`, Lydian → `Cmaj13(#11)`) offered as ready-made chords;
+  **Лад от** can instead read the chord as a degree inside the partner's key;
+- clicking a chord/chip previews just that chord; the pair plays on its button;
+- the panel shows the mood category (colour-coded), description and provenance
+  (`authored` from the table / `derived` / `heuristic`); **Вставить B после A**
+  drops B into the lane, **↺ Сбросить** restores the original pair.
+
+### Keyboard shortcuts
+
+| Key | Action |
+|---|---|
+| `Space` | play / stop |
+| `1`–`4` | select the active melody voice |
+| `←` / `→` | select previous / next chord |
+| `Delete` / `Backspace` | delete the selection |
+| `Ctrl+A` | select all (notes of the active voice, or all chords) |
+| `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | copy / cut / paste the selection |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
+| `Esc` | close a drawer, stop playback, or deselect |
 
 ## Voices and per-instance output
 
@@ -129,8 +197,25 @@ node bridge/test-protocol.mjs
 node --check web/app.js
 ```
 
-The last verified local result was 53 Python tests and 2 Node protocol tests
-passing, plus a successful JavaScript syntax check.
+The mood engine has its own acceptance tests (they reproduce all 46 authored
+chord pairs 1:1 and cover colour moves, dim/aug and extensions):
+
+```powershell
+python -m sidecar.tests.test_mood_engine
+```
+
+## HTTP API (sidecar)
+
+Beyond the sketch CRUD and `advice` used by the editor, the sidecar exposes:
+
+| Method + path | Purpose |
+|---|---|
+| `POST /api/sketches/{id}/chord-edit` | structured chord edits (type, quality, inversion, options, secondary, borrow, root, position, resize, resize_left, insert_at…) |
+| `POST /api/sketches/{id}/note-edit` | add / move / resize / delete a melody note |
+| `POST /api/sketches/{id}/export-midi` | write per-part `.mid` files and open the folder |
+| `POST /api/pair-mood` | `{a, b}` → mood of the ordered pair + both voicings |
+| `POST /api/mode-chord` | `{root, mode, type}` → a mode's characteristic chord from a root, plus 7/9/11/13 variants |
+| `POST /api/degree-chord` | `{tonic, mode, root, type}` → the diatonic chord at a root read inside a key |
 
 ## Repository map
 
@@ -148,6 +233,7 @@ web/            embedded Harmony Lab frontend
 ## Documents
 
 - [Current handoff and known issues](docs/HANDOFF.md)
+- [Mood model specification](docs/MOOD_MODEL_SPEC.md)
 - [Product backlog](docs/PRODUCT_BACKLOG.md)
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Architecture](docs/ARCHITECTURE.md)
