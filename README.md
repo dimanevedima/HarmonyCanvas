@@ -106,8 +106,8 @@ Download the `HarmonyCanvas-Windows-VST3` artifact and copy the entire
 C:\Program Files\Common Files\VST3\
 ```
 
-The current packaged build is produced by workflow run 11 from commit
-`af19efa`. Environment overrides for development:
+The current packaged build is produced by workflow run 19 from commit
+`62a1d19`. Environment overrides for development:
 
 - `HARMONY_CANVAS_LAB_URL` — use an externally hosted development UI;
 - `HARMONY_CANVAS_SIDECAR` — explicit path to the sidecar executable;

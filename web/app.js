@@ -4396,19 +4396,22 @@ async function labNoteEdit(op, payload = {}) {
 function labRowPointerDown(event, midi) {
   if (event.target.closest(".lab-note")) return;
   event.preventDefault();
+  if (event.button === 2) return; // right-click on empty grid: no-op (menu suppressed)
   setLabContextMode("note");
   const track = event.currentTarget;
-  if (event.shiftKey || event.button === 2) { labMarqueeStart(event, track); return; }
+  if (event.shiftKey) { labMarqueeStart(event, track); return; }
   const beats = labSnap(labTrackBeats(track, event.clientX));
   labNoteEdit("add", { pitch: midi, start: beats, duration: window.labNoteLength || 1, voice: window.labActiveVoice || 1 });
 }
 
-/** Drag a note to move it, or drag its right edge to change the length. */
+/** Drag a note to move it, or drag its right edge to change the length.
+ *  Right-click deletes the note. */
 function labNotePointerDown(event, index) {
   event.stopPropagation();
   event.preventDefault();
   const note = (window.currentLabAdvice?.melody || [])[index];
   if (!note) return;
+  if (event.button === 2) { labNoteEdit("delete", { index }); return; }
   selectLabNote(index);
   const element = event.currentTarget;
   const resizing = !!event.target.closest(".lab-note-grip");
@@ -4466,6 +4469,7 @@ function labChordPointerDown(event, index) {
   const advice = window.currentLabAdvice;
   const chord = (advice?.chords || [])[index];
   if (!chord) return;
+  if (event.button === 2) { labEdit("delete", "", index); return; } // right-click deletes
   const element = event.currentTarget;
   const resizeRight = !!event.target.closest(".lab-chord-grip-right");
   const resizeLeft = !!event.target.closest(".lab-chord-grip-left");
@@ -4739,6 +4743,12 @@ document.addEventListener("pointerdown", event => {
   if (event.target.closest?.(".lab-systems, .lab-voices-bar, .lab-insert, .lab-chord-inspector")) window.labPointerBusy = true;
 }, true);
 document.addEventListener("pointerup", () => { setTimeout(() => { window.labPointerBusy = false; }, 80); }, true);
+
+// Right-click in the roll/lane/palette edits (delete note/chord) rather than
+// opening the browser's own context menu, so nothing gets in the way.
+document.addEventListener("contextmenu", event => {
+  if (event.target.closest?.(".lab-systems, .lab-context-bar, .lab-voices-bar, .lab-chord-inspector, .lab-lane-row")) event.preventDefault();
+});
 
 /** Editor shortcuts, ignored while typing into a field. */
 document.addEventListener("keydown", event => {
