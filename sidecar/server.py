@@ -449,6 +449,17 @@ class HarmonyCanvasHandler(BaseHTTPRequestHandler):
                 state["seq"] += 1
                 self.send_json(dict(state))
             return
+        if parts == ["api", "mode-chord"]:
+            # The characteristic tonic chord of a mode from a given root, spelled
+            # with the mode's own tensions (Dorian -> m13, Lydian -> maj13(#11)).
+            from sidecar.harmony_engine import _mode_context, degree_state, compose_symbol
+            root = str(payload.get("root") or "C")
+            mode = str(payload.get("mode") or "major")
+            ctype = str(payload.get("type") or "13")
+            tonic_pc, intervals, flats = _mode_context(root, mode)
+            state = degree_state(tonic_pc, intervals, 0, flats, {"type": ctype})
+            self.send_json({"symbol": compose_symbol(state)})
+            return
         if parts == ["api", "pair-mood"]:
             # Stateless: mood + voicing for any ordered chord pair (dial popup).
             from sidecar import ptm_analysis

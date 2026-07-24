@@ -1557,3 +1557,8 @@ body.lab-focus .lab-shell { grid-template-columns: minmax(0, 1fr); }
 .lab-pair-cat-5 { --moodc: #cf4437; }
 .lab-pair-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .lab-pair-insert { border-color: var(--purple) !important; background: color-mix(in srgb, var(--purple) 12%, var(--paper)) !important; color: var(--purple) !important; }
+
+.lab-pair-moderow { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; padding: 2px 0; }
+.lab-pair-modefit { display: grid; gap: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.lab-pair-modefit span { padding-left: 1px; }
+.lab-pair-modefit select { font-size: 12px; padding: 5px 7px; min-height: 32px; min-width: 118px; }
