@@ -4248,7 +4248,7 @@ function labSystemHtml(advice, timeline, offset, span, systemIndex) {
   // click to hear it. No buttons to squeeze into a one-beat card.
   const lane = (advice.chords || []).map((chord, index) => [chord, index])
     .filter(([chord]) => inSystem(chord.start))
-    .map(([chord, index]) => `<article class="lab-lane-chord ${index === window.labSelectedChordIndex ? "selected" : ""} ${chord.diatonic === false ? "is-outside" : ""}" style="--start:${chord.start - offset};--len:${chord.beats};--deg:${labChromaColor(chord.chroma)}" data-chord="${index}" onpointerdown="labChordPointerDown(event,${index})" title="${esc(chord.symbol)} · ${esc(chord.degree)} · ${chord.beats} доли — тяните, чтобы двигать; за края — растянуть">
+    .map(([chord, index]) => `<article class="lab-lane-chord ${index === window.labSelectedChordIndex || (window.labSelectedChords || []).includes(index) ? "selected" : ""} ${chord.diatonic === false ? "is-outside" : ""}" style="--start:${chord.start - offset};--len:${chord.beats};--deg:${labChromaColor(chord.chroma)}" data-chord="${index}" onpointerdown="labChordPointerDown(event,${index})" title="${esc(chord.symbol)} · ${esc(chord.degree)} · ${chord.beats} доли — тяните, чтобы двигать; за края — растянуть">
       <b class="lab-chord-grip lab-chord-grip-left"></b>
       <span class="lab-lane-name"><b>${esc(chord.degree)}</b><strong>${esc(chord.symbol)}</strong></span>
       <b class="lab-chord-grip lab-chord-grip-right"></b></article>`).join("");
@@ -4753,7 +4753,8 @@ function labChordPointerDown(event, index) {
     window.removeEventListener("pointerup", onUp);
     element.style.opacity = "";
     if (!moved) {
-      selectLabChord(index);
+      if (event.shiftKey) labExtendChordSelection(index);
+      else selectLabChord(index);
       labPlay([chord.midi]);
       return;
     }
@@ -5007,8 +5008,10 @@ document.addEventListener("keydown", event => {
     if (key === "z" && event.shiftKey) { event.preventDefault(); labRedo(); }
     else if (key === "z") { event.preventDefault(); labUndo(); }
     else if (key === "y") { event.preventDefault(); labRedo(); }
+    else if (key === "c") { event.preventDefault(); labCopy(); }
     else if (key === "x") { event.preventDefault(); labCut(); }
     else if (key === "v") { event.preventDefault(); labPaste(); }
+    else if (key === "a") { event.preventDefault(); labSelectAll(); }
     return;
   }
   if (event.key === " ") {
@@ -5223,6 +5226,7 @@ async function putLabChord(symbol) {
 function deselectLabChord(event) {
   if (event && event.target.closest(".lab-lane-chord")) return;
   window.labSelectedChordIndex = null;
+  window.labSelectedChords = [];
   window.labInspector = "chord";
   labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
   labRenderContextBar();
@@ -5506,26 +5510,114 @@ async function labRedo() {
   }
 }
 
-async function labCut() {
+// ── Copy / cut / paste for a selection of notes or chords ───────────────────
+
+function labSelectedNoteIndices() {
+  const list = window.labSelectedNotes || [];
+  if (list.length) return [...list].sort((a, b) => a - b);
+  return window.labSelectedNote != null ? [window.labSelectedNote] : [];
+}
+
+function labSelectedChordIndices() {
+  const list = window.labSelectedChords || [];
+  if (list.length) return [...list].sort((a, b) => a - b);
+  return window.labSelectedChordIndex != null ? [window.labSelectedChordIndex] : [];
+}
+
+/** Copy the current selection (notes when the note inspector is active, else
+ *  chords) into the in-app clipboard, preserving relative timing and lengths. */
+function labCopy() {
   const advice = window.currentLabAdvice;
-  if (window.labInspector === "note" && window.labSelectedNote != null) {
-    window.labClipboardNote = (advice?.melody || [])[window.labSelectedNote];
-    if (!window.labClipboardNote) return;
-    return labNoteEdit("delete", { index: window.labSelectedNote });
+  if (window.labInspector === "note") {
+    const notes = labSelectedNoteIndices().map(i => (advice?.melody || [])[i]).filter(Boolean)
+      .map(n => ({ pitch: n.pitch, start: n.start, duration: n.duration, voice: n.voice }));
+    if (!notes.length) return toast("Ноты не выделены");
+    const minStart = Math.min(...notes.map(n => n.start));
+    const span = Math.max(0.25, Math.max(...notes.map(n => n.start + n.duration)) - minStart);
+    window.labClip = { type: "notes", notes: notes.map(n => ({ ...n, start: +(n.start - minStart).toFixed(3) })), span, origStart: minStart, pasteN: 0 };
+    return toast(`Скопировано нот: ${notes.length}`);
   }
-  const chord = labSelectedChord(advice);
-  if (!chord) return toast("Нечего вырезать: ничего не выбрано");
-  window.labClipboardChord = chord.symbol;
-  await labEdit("delete", "", window.labSelectedChordIndex);
+  const chords = labSelectedChordIndices().map(i => (advice?.chords || [])[i]).filter(Boolean)
+    .map(c => ({ symbol: c.symbol, beats: c.beats }));
+  if (!chords.length) return toast("Аккорды не выделены");
+  window.labClip = { type: "chords", chords };
+  toast(`Скопировано аккордов: ${chords.length}`);
+}
+
+async function labCut() {
+  labCopy();
+  const clip = window.labClip;
+  if (!clip) return;
+  if (clip.type === "notes") return labDeleteSelectedNotes();
+  await labDeleteSelectedChords();
 }
 
 async function labPaste() {
-  if (window.labInspector === "note" && window.labClipboardNote) {
-    const note = window.labClipboardNote;
-    return labNoteEdit("add", { pitch: note.pitch, start: note.start, duration: note.duration, voice: note.voice });
+  const clip = window.labClip;
+  if (!clip) return toast("Буфер пуст");
+  if (clip.type === "notes") return labPasteNotes();
+  return labPasteChords();
+}
+
+/** Paste notes tiled just after the copied block; repeat to keep duplicating. */
+async function labPasteNotes() {
+  const clip = window.labClip; const advice = window.currentLabAdvice;
+  if (!clip?.notes?.length) return;
+  const base = clip.origStart + clip.span * (clip.pasteN + 1);
+  const existing = (advice?.melody || []).map(n => ({ pitch: n.pitch, start: n.start, duration: n.duration, voice: n.voice }));
+  const pasted = clip.notes.map(n => ({ pitch: n.pitch, start: +(base + n.start).toFixed(3), duration: n.duration, voice: n.voice || 1 }));
+  labPushHistory();
+  try {
+    await api(`/sketches/${currentSketchId}`, { method: "PATCH", body: JSON.stringify({ melody: existing.concat(pasted) }) });
+    clip.pasteN += 1;
+    await refreshLabAdvice();
+    toast(`Вставлено нот: ${pasted.length}`);
+  } catch (error) { toast(error.message); }
+}
+
+/** Paste chords appended at the end, keeping each chord's own length. */
+async function labPasteChords() {
+  const clip = window.labClip; const advice = window.currentLabAdvice;
+  if (!clip?.chords?.length) return;
+  const chords = advice?.chords || [];
+  const tokens = chords.map(c => c.symbol);
+  const beats = chords.map(c => c.beats);
+  const starts = chords.map(c => c.start);
+  let cursor = chords.length ? Math.max(...chords.map(c => c.start + c.beats)) : 0;
+  for (const c of clip.chords) { tokens.push(c.symbol); beats.push(c.beats); starts.push(cursor); cursor += c.beats; }
+  labPushHistory();
+  try {
+    await api(`/sketches/${currentSketchId}`, { method: "PATCH", body: JSON.stringify({ chord_input: tokens.join(" "), chord_beats: beats, chord_starts: starts }) });
+    await refreshLabAdvice();
+    toast(`Вставлено аккордов: ${clip.chords.length}`);
+  } catch (error) { toast(error.message); }
+}
+
+/** Delete the whole selected chord range (rebuilds the aligned arrays). */
+async function labDeleteSelectedChords() {
+  const advice = window.currentLabAdvice;
+  const drop = new Set(labSelectedChordIndices());
+  if (!drop.size) return;
+  const kept = (advice?.chords || []).filter((_, i) => !drop.has(i));
+  labPushHistory();
+  try {
+    await api(`/sketches/${currentSketchId}`, { method: "PATCH", body: JSON.stringify({ chord_input: kept.map(c => c.symbol).join(" "), chord_beats: kept.map(c => c.beats), chord_starts: kept.map(c => c.start) }) });
+    window.labSelectedChords = []; window.labSelectedChordIndex = null;
+    await refreshLabAdvice();
+  } catch (error) { toast(error.message); }
+}
+
+function labSelectAll() {
+  const advice = window.currentLabAdvice;
+  if (window.labInspector === "note") {
+    window.labSelectedNotes = (advice?.melody || []).map((n, i) => [n, i]).filter(([n]) => (n.voice || 1) === (window.labActiveVoice || 1)).map(([, i]) => i);
+    labSetRegion("lab-score", labScoreHtml(advice));
+    return toast(`Выделено нот: ${window.labSelectedNotes.length}`);
   }
-  if (!window.labClipboardChord) return toast("Буфер пуст");
-  await putLabChord(window.labClipboardChord);
+  window.labSelectedChords = (advice?.chords || []).map((_, i) => i);
+  window.labInspector = "chord";
+  labSetRegion("lab-score", labScoreHtml(advice));
+  toast(`Выделено аккордов: ${window.labSelectedChords.length}`);
 }
 
 async function refreshLabAdvice() {
@@ -5589,11 +5681,22 @@ async function appendLabChord(symbol) {
   await putLabChord(symbol);
 }
 
+/** Shift-click extends a contiguous chord range from the anchor selection. */
+function labExtendChordSelection(index) {
+  const anchor = window.labSelectedChordIndex == null ? index : window.labSelectedChordIndex;
+  const lo = Math.min(anchor, index), hi = Math.max(anchor, index);
+  window.labSelectedChords = Array.from({ length: hi - lo + 1 }, (_, k) => lo + k);
+  window.labInspector = "chord";
+  labSetRegion("lab-score", labScoreHtml(window.currentLabAdvice));
+  labSetRegion("lab-chord-inspector", labInspectorHtml(window.currentLabAdvice));
+}
+
 /** Selection is local first: only the suggestion palette needs the server. */
 async function selectLabChord(index) {
   const wasNote = window.labInspector === "note";
   window.labInspector = "chord";
   setLabContextMode("chord");
+  window.labSelectedChords = [index]; // a plain click resets any multi-selection
   if (index === window.labSelectedChordIndex) {
     if (wasNote) labSetRegion("lab-chord-inspector", labInspectorHtml(window.currentLabAdvice));
     return;
