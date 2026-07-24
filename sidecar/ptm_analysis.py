@@ -1,67 +1,22 @@
-"""Harmony analysis engine based on the PTM-26 theory data (app/data/ptm/).
-
-Takes a SongMaster chord timeline and produces a structured report:
-
-- tonic estimation (duration-weighted Krumhansl profiles, SongMaster key as hint)
-- per-transition mood via the 46 modal chord pairs (clock time, category, mood)
-- loop detection via repeated n-grams over the compressed chord stream
-- rotation-invariant matching against the progression catalogs
-  (27 simple, 14 classes, 12 cinematic)
-- tonal-functional map (T/S/D per chord, cadences, tonal-vs-modal verdict)
-
-The original chord labels (with 7/9/11/sus/slash-bass) are preserved end to
-end; reduction to triads happens only inside the matching step, and every
-match made on a reduced chord carries an ``approx`` note, because extensions
-shade the mood of a pair.
+"""Harmony reference data behind two Lab features: the Pair Dial's chord-pair
+mood (`pair_mood`, `analyze_transition`, via the 46 modal chord pairs) and the
+"theory catalog" matches shown under a sketch (`catalog`, `match_catalog`,
+rotation-invariant matching against the PTM-26 progression catalogs — 27
+simple, 14 classes, 12 cinematic — in `data/ptm/`). `parse_chord` is the
+shared entry point both paths normalize a chord label through.
 """
 
 from __future__ import annotations
-
 import json
 import re
-from collections import Counter
 from functools import lru_cache
 from pathlib import Path
-
-from sidecar.songmaster import (
-    DEGREE_TO_SEMITONE,
-    NOTE_TO_PC,
-    PC_TO_FLAT,
-    PC_TO_SHARP,
-    ROMAN_BY_DIFF,
-    m2tm_chord,
-)
-
+from sidecar.songmaster import NOTE_TO_PC, m2tm_chord
 DATA_DIR = Path(__file__).parent / "data" / "ptm"
-
-CATEGORY_NAMES = {
-    1: "Позитив",
-    2: "Фантастика и колорит",
-    3: "Сказочность",
-    4: "Драматизм и печаль",
-    5: "Опасность и тьма",
-}
-
-# Krumhansl-Schmuckler key profiles (same values music_analysis_v2 uses).
-MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
-MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
 
 MAJOR_SCALE_SEMIS = [0, 2, 4, 5, 7, 9, 11]
 
 ROMAN_VALUE = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
-
-TRIAD_PCS = {
-    "maj": (0, 4, 7),
-    "min": (0, 3, 7),
-    "dim": (0, 3, 6),
-    "aug": (0, 4, 8),
-    "sus2": (0, 2, 7),
-    "sus4": (0, 5, 7),
-    "power": (0, 7),
-}
-
-
-# ── Chord parsing ─────────────────────────────────────────────────────────
 
 def _split_quality(rest: str) -> tuple[str, bool] | None:
     """Quality string (already compact, no root) -> (triad family, has extensions)."""
@@ -94,7 +49,6 @@ def _split_quality(rest: str) -> tuple[str, bool] | None:
         return "maj", True
     return None
 
-
 def parse_chord(label: str) -> dict | None:
     """SongMaster label (``Gb:m7``, ``D/5``) or compact token (``Gbm7``, ``D/F#``)
     -> chord dict. Returns None for empty / "N" / unparseable labels."""
@@ -126,49 +80,6 @@ def parse_chord(label: str) -> dict | None:
         "bass_pc": bass_pc,
     }
 
-
-def chord_pcs(chord: dict) -> list[int]:
-    root = chord["root_pc"]
-    pcs = [(root + i) % 12 for i in TRIAD_PCS[chord["triad"]]]
-    if chord["bass_pc"] is not None and chord["bass_pc"] not in pcs:
-        pcs.append(chord["bass_pc"])
-    return pcs
-
-
-def chord_midis_full(chord: dict) -> list[int]:
-    """MIDI notes of the TRUE chord (extensions and slash bass included) for
-    playback: bass an octave below, chord around C3, the third doubled an
-    octave up (it alone separates major from minor)."""
-    quality = re.sub(r"sus[24]?", "", chord["quality"])
-    semis = set(TRIAD_PCS[chord["triad"]])
-    if re.search(r"maj\d", quality):
-        semis.add(11)
-    elif "dim7" in quality:
-        semis.add(9)
-    elif re.search(r"\d", quality):
-        digits = re.findall(r"11|13|[24679]", quality)
-        if "6" in digits:
-            semis.add(9)
-        if "7" in digits or "11" in digits or "13" in digits or ("9" in digits and "add" not in quality):
-            semis.add(10)
-        if "9" in digits:
-            semis.add(14)
-        if "2" in digits:
-            semis.add(14)
-        if "11" in digits or "4" in digits:
-            semis.add(17)
-        if "13" in digits:
-            semis.add(21)
-    root_midi = 48 + chord["root_pc"]
-    bass = 36 + (chord["bass_pc"] if chord["bass_pc"] is not None else chord["root_pc"])
-    notes = [bass] + sorted(root_midi + s for s in semis)
-    if chord["triad"] in ("maj", "min"):
-        notes.append(root_midi + TRIAD_PCS[chord["triad"]][1] + 12)
-    return notes
-
-
-# ── Clock geometry (modal dial) ───────────────────────────────────────────
-
 def fifths_pos(pc: int) -> int:
     return (pc * 7) % 12
 
@@ -185,16 +96,10 @@ def pair_minutes(c1: dict, c2: dict) -> int:
 def fmt_clock(minutes: int) -> str:
     return f"12:{minutes:02d}"
 
-
-# ── PTM data ──────────────────────────────────────────────────────────────
-
-@lru_cache(maxsize=None)
 def _load(name: str) -> dict:
     with open(DATA_DIR / f"{name}.json", encoding="utf-8") as fh:
         return json.load(fh)
 
-
-@lru_cache(maxsize=1)
 def pair_table() -> dict[tuple[str, str, int], dict]:
     """(q1, q2, root_diff_semitones) -> pair entry. Table is written from C/Cm."""
     table: dict[tuple[str, str, int], dict] = {}
@@ -206,7 +111,6 @@ def pair_table() -> dict[tuple[str, str, int], dict]:
         diff = (c2["root_pc"] - c1["root_pc"]) % 12
         table[(c1["triad"], c2["triad"], diff)] = pair
     return table
-
 
 def parse_roman_token(token: str) -> tuple[int, str] | None:
     """Roman token (``bVII``, ``ii7``, ``I sus4``, ``#I dim``, ``V+``)
@@ -240,7 +144,6 @@ def parse_roman_token(token: str) -> tuple[int, str] | None:
         triad = "min" if is_lower else "maj"
     return (semis % 12, triad)
 
-
 def parse_roman_pattern(roman: str) -> list[tuple[int, str]] | None:
     """Catalog pattern string -> list of (semitones, triad); None if unparseable."""
     flat = roman.replace("||", "|").replace("|", "-").replace("///", "")
@@ -259,8 +162,6 @@ def parse_roman_pattern(roman: str) -> list[tuple[int, str]] | None:
         steps.append(parsed)
     return steps
 
-
-@lru_cache(maxsize=1)
 def catalog() -> list[dict]:
     """All catalog progressions with parsed step lists."""
     entries: list[dict] = []
@@ -319,11 +220,8 @@ def catalog() -> list[dict]:
             })
     return entries
 
-
-@lru_cache(maxsize=1)
 def transition_moves() -> list[dict]:
     return _load("extendedCatalog")["transition_moves"]
-
 
 def _extended_move(c1: dict, c2: dict) -> dict | None:
     """Именованный ход из доп. каталога для перехода вне таблицы 46 пар."""
@@ -345,101 +243,18 @@ def _extended_move(c1: dict, c2: dict) -> dict | None:
         return {"name": move["name_ru"], "mood": move["mood"], "source": "extended"}
     return None
 
-
-@lru_cache(maxsize=1)
-def tfg_tables() -> dict[str, dict[tuple[int, str], str]]:
-    """mode -> {(semitones from tonic, triad) -> function string (T/S/D/...)}."""
-    data = _load("tfgAlgorithm")
-    triad_map = {"maj": "maj", "min": "min", "dim": "dim", "aug": "aug"}
-    out: dict[str, dict[tuple[int, str], str]] = {}
-    for mode, key in (("major", "major_functions"), ("minor", "minor_functions")):
-        table: dict[tuple[int, str], str] = {}
-        for degree in data[key]["degrees"]:
-            semis = DEGREE_TO_SEMITONE.get(degree["degree"].strip())
-            triad = triad_map.get(degree["triad"].strip().lower())
-            if semis is None or triad is None:
-                continue
-            table[(semis % 12, triad)] = degree["function"]
-        out[mode] = table
-    return out
-
-
-# ── Tonic estimation ──────────────────────────────────────────────────────
-
-def _correlate(chroma: list[float], profile: list[float]) -> float:
-    dot = sum(a * b for a, b in zip(chroma, profile))
-    na = sum(a * a for a in chroma) ** 0.5
-    nb = sum(b * b for b in profile) ** 0.5
-    return dot / (na * nb) if na and nb else 0.0
-
-
-def estimate_tonic(chords: list[dict], durations: list[float]) -> dict:
-    chroma = [0.0] * 12
-    for chord, dur in zip(chords, durations):
-        for pc in chord_pcs(chord):
-            chroma[pc] += dur
-    # anchor bonus: the first and last chords often sit on the tonic
-    if chords:
-        for chord, bonus in ((chords[0], 0.5), (chords[-1], 0.5)):
-            total = sum(durations) or 1.0
-            chroma[chord["root_pc"]] += bonus * total / max(len(chords), 1)
-    scores = []
-    for pc in range(12):
-        maj = _correlate(chroma, MAJOR_PROFILE[-pc:] + MAJOR_PROFILE[:-pc])
-        mnr = _correlate(chroma, MINOR_PROFILE[-pc:] + MINOR_PROFILE[:-pc])
-        scores.append((maj, pc, "major"))
-        scores.append((mnr, pc, "minor"))
-    scores.sort(reverse=True)
-    best, runner = scores[0], scores[1]
-    return {
-        "pc": best[1],
-        "name": PC_TO_SHARP[best[1]],
-        "mode": best[2],
-        "confidence": round(max(0.0, min(1.0, best[0] - runner[0] + 0.35)), 3),
-    }
-
-
-# ── Roman numerals & functions ────────────────────────────────────────────
-
-QUALITY_ROMAN_SUFFIX = {"dim": "dim", "aug": "+", "sus2": "sus2", "sus4": "sus4", "power": "5"}
-
-def roman_of(chord: dict, tonic_pc: int) -> str:
-    diff = (chord["root_pc"] - tonic_pc) % 12
-    base = ROMAN_BY_DIFF[diff]
-    if chord["triad"] in ("min", "dim"):
-        base = base.lower()
-    suffix = QUALITY_ROMAN_SUFFIX.get(chord["triad"], "")
-    if chord["has_extensions"]:
-        ext = re.sub(r"^m(?!aj)", "", chord["quality"])
-        suffix = suffix or ext
-    return base + suffix
-
-
-def function_of(chord: dict, tonic_pc: int, mode: str) -> str | None:
-    table = tfg_tables().get(mode, {})
-    diff = (chord["root_pc"] - tonic_pc) % 12
-    # dominant 7ths and other colors keep their triad's function
-    return table.get((diff, chord["triad"]))
-
-
-# ── Transitions (46 pairs) ────────────────────────────────────────────────
-
 PAIRABLE = {"maj": "maj", "min": "min", "sus2": "maj", "sus4": "maj", "power": "maj"}
-
-
-# ── Mood model (docs/MOOD_MODEL_SPEC.md) ──────────────────────────────────
-# Affect vectors are (valence, tension, color): dark↔bright, stable↔tense,
-# plain↔exotic. The authored 46-pair table stays ground truth for maj/min pairs;
-# vectors extend the model to dim/aug, same-root colour moves and extensions.
 
 _TRIAD_VEC = {
     "maj": (2, -1, 0), "min": (-2, -1, 0), "dim": (-1, 2, 0), "aug": (0, 2, 2),
     "sus2": (0, 0, 1), "sus4": (0, 1, 0), "power": (0, 0, 0),
 }
-_CATEGORY_CENTROID = {1: (2, -1, 0), 2: (0, 1, 2), 3: (1, 0, 2), 4: (-2, 1, 0), 5: (-2, 2, 1)}
-_CATEGORY_NAME = {1: "Позитив", 2: "Фантастика и колорит", 3: "Сказочность", 4: "Драматизм и печаль", 5: "Опасность и тьма"}
-_CATEGORY_PHRASE = {1: "Светло, позитивно", 2: "Колоритно, фантастично", 3: "Волшебно, сказочно", 4: "Драматично, печально", 5: "Тревожно, темно"}
 
+_CATEGORY_CENTROID = {1: (2, -1, 0), 2: (0, 1, 2), 3: (1, 0, 2), 4: (-2, 1, 0), 5: (-2, 2, 1)}
+
+_CATEGORY_NAME = {1: "Позитив", 2: "Фантастика и колорит", 3: "Сказочность", 4: "Драматизм и печаль", 5: "Опасность и тьма"}
+
+_CATEGORY_PHRASE = {1: "Светло, позитивно", 2: "Колоритно, фантастично", 3: "Волшебно, сказочно", 4: "Драматично, печально", 5: "Тревожно, темно"}
 
 def _color_modifiers(chord: dict) -> tuple[int, int, int, list[str]]:
     """Extension colour of a chord as (Δvalence, Δtension, Δcolor, note-words),
@@ -488,27 +303,18 @@ def _color_modifiers(chord: dict) -> tuple[int, int, int, list[str]]:
             add(dv, dt, dc, word)
     return v, t, c, notes
 
-
 def chord_color(chord: dict) -> tuple[int, int, int]:
     base = _TRIAD_VEC.get(chord["triad"], (0, 0, 0))
     dv, dt, dc, _ = _color_modifiers(chord)
     clamp = lambda x: max(-4, min(4, x))
     return (clamp(base[0] + dv), clamp(base[1] + dt), clamp(base[2] + dc))
 
-
 def _nearest_category(pos: tuple[float, float, float]) -> int:
     return min(_CATEGORY_CENTROID, key=lambda k: sum((a - b) ** 2 for a, b in zip(pos, _CATEGORY_CENTROID[k])))
-
 
 def _compose_mood(category: int, notes: list[str]) -> str:
     base = _CATEGORY_PHRASE[category]
     return f"{base} · {', '.join(notes)}" if notes else base
-
-
-_MOVE_ARCHETYPES = [
-    # (predicate on (dv,dt,dc) delta, category-bias, phrase)
-]
-
 
 def _color_move_mood(c1: dict, c2: dict, clock: str) -> dict:
     """Same-root colour move (interval 0): mood from the delta of colour vectors
@@ -541,7 +347,6 @@ def _color_move_mood(c1: dict, c2: dict, clock: str) -> dict:
         "mood": f"{_CATEGORY_PHRASE[cat]} · {arch}" + (f" · {', '.join(notes)}" if notes else ""),
         "provenance": "derived", "kind": "same_root",
     }
-
 
 def pair_mood(c1: dict, c2: dict) -> dict:
     """Enriched mood for any ordered chord pair. Authored where the triad
@@ -595,7 +400,6 @@ def pair_mood(c1: dict, c2: dict) -> dict:
     return {"category": cat, "category_name": _CATEGORY_NAME[cat], "clock": clock,
             "mood": _compose_mood(cat, notes), "provenance": "heuristic", "kind": "modal"}
 
-
 def analyze_transition(c1: dict, c2: dict) -> dict:
     approx: list[str] = []
     q1, q2 = PAIRABLE.get(c1["triad"]), PAIRABLE.get(c2["triad"])
@@ -642,145 +446,6 @@ def analyze_transition(c1: dict, c2: dict) -> dict:
         }
     return result
 
-
-# ── Loops & catalog matching ──────────────────────────────────────────────
-
-def _canonical_rotation(seq: tuple) -> tuple:
-    rotations = [seq[i:] + seq[:i] for i in range(len(seq))]
-    return min(rotations)
-
-
-def _fundamental_period(seq: tuple) -> int:
-    n = len(seq)
-    for p in range(1, n):
-        if n % p == 0 and seq == seq[:p] * (n // p):
-            return p
-    return n
-
-
-def detect_loops(ids: tuple, limit: int = 8) -> list[dict]:
-    """Repeated n-grams (2..8) over the compressed chord id stream,
-    deduplicated by cyclic rotation; longer and more frequent first.
-    Windows that are themselves repeats of a shorter cycle (I-Isus4-I-Isus4)
-    are skipped — only the fundamental cycle counts."""
-    counter: Counter[tuple] = Counter()
-    first_seen: dict[tuple, tuple] = {}
-    for size in range(2, min(8, len(ids) - 1) + 1):
-        for i in range(len(ids) - size + 1):
-            window = ids[i:i + size]
-            if len(set(window)) < 2:
-                continue
-            canon = _canonical_rotation(window)
-            if _fundamental_period(canon) < len(canon):
-                continue
-            counter[canon] += 1
-            first_seen.setdefault(canon, window)
-    loops = []
-    taken: list[tuple] = []
-    for canon, count in sorted(counter.items(), key=lambda kv: (kv[1] * len(kv[0]), len(kv[0])), reverse=True):
-        if count < 2:
-            continue
-        # drop patterns fully contained in an already accepted longer loop
-        if any(set(canon) <= set(t) and len(canon) < len(t) for t in taken):
-            continue
-        loops.append({"ids": first_seen[canon], "count": count})
-        taken.append(canon)
-        if len(loops) >= limit:
-            break
-    return loops
-
-
-def _loop_family_alignment(loop_a: dict, loop_b: dict) -> dict | None:
-    """Return a musically conservative cyclic alignment for two loops.
-
-    A family is defined by ordered root motion, not by the unordered set of
-    roots.  The shorter cycle may tile an expansion of up to two cycles; root
-    substitutions are limited to 25%, while chord-quality changes are scored
-    separately.  Trying every phase makes true rotations equivalent without
-    making arbitrary permutations equivalent.
-    """
-    ids_a = tuple(loop_a.get("ids", ()))
-    ids_b = tuple(loop_b.get("ids", ()))
-    if not ids_a or not ids_b:
-        return None
-    short, long = (ids_a, ids_b) if len(ids_a) <= len(ids_b) else (ids_b, ids_a)
-    if len(long) / len(short) > 2.25:
-        return None
-
-    best = None
-    for phase in range(len(short)):
-        root_changes = 0
-        quality_changes = 0
-        for i, (root, triad) in enumerate(long):
-            expected_root, expected_triad = short[(i + phase) % len(short)]
-            if root != expected_root:
-                root_changes += 1
-            elif triad != expected_triad:
-                quality_changes += 1
-        score = (root_changes + quality_changes * 0.35) / len(long)
-        candidate = {
-            "score": round(score, 3),
-            "phase": phase,
-            "root_changes": root_changes,
-            "quality_changes": quality_changes,
-            "expanded": len(ids_a) != len(ids_b),
-        }
-        if best is None or candidate["score"] < best["score"]:
-            best = candidate
-
-    max_root_changes = max(0, len(long) // 4)
-    max_quality_changes = max(1, len(long) // 3)
-    if best["root_changes"] > max_root_changes or best["quality_changes"] > max_quality_changes:
-        return None
-    return best
-
-
-def _family_relation(alignment: dict) -> str:
-    parts = []
-    if alignment["expanded"]:
-        parts.append("расширение цикла")
-    elif alignment["phase"]:
-        parts.append("ротация")
-    if alignment["root_changes"]:
-        parts.append(f"замена корня · {alignment['root_changes']}")
-    if alignment["quality_changes"]:
-        parts.append(f"смена качества · {alignment['quality_changes']}")
-    return ", ".join(parts) or "точный вариант"
-
-
-def group_loop_families(loop_entries: list[dict]) -> list[dict]:
-    """Merge cyclically aligned variants while preserving harmonic order."""
-    families: list[dict] = []
-    for loop in sorted(loop_entries, key=lambda l: l["count"] * len(l["chords"]), reverse=True):
-        for family in families:
-            alignment = _loop_family_alignment(family["main"], loop)
-            if alignment is not None:
-                family["variants"].append((loop, alignment))
-                break
-        else:
-            families.append({"main": loop, "variants": []})
-    out = []
-    for family in families:
-        entry = dict(family["main"])
-        entry.pop("root_pcs", None)
-        entry.pop("ids", None)
-        entry["variants"] = [
-            {
-                "chords": variant["chords"],
-                "roman": variant["roman"],
-                "count": variant["count"],
-                "start": variant["start"],
-                "relation": _family_relation(alignment),
-                "distance": alignment["score"],
-            }
-            for variant, alignment in sorted(
-                family["variants"], key=lambda item: (item[1]["score"], -item[0]["count"])
-            )[:4]
-        ]
-        out.append(entry)
-    return out[:5]
-
-
 def match_catalog(song_steps: list[tuple[int, str]]) -> list[dict]:
     """Count occurrences of every catalog progression (all rotations) as a
     contiguous subsequence of the song's (degree, triad) stream."""
@@ -818,179 +483,3 @@ def match_catalog(song_steps: list[tuple[int, str]]) -> list[dict]:
     matches.sort(key=lambda m: (m["count"] * m["length"], m["length"]), reverse=True)
     return matches
 
-
-# ── Cadences ──────────────────────────────────────────────────────────────
-
-CADENCES = [
-    ((7, 0), "Автентическая (V→I)"),
-    ((5, 0), "Плагальная (IV→I)"),
-    ((7, 9), "Прерванная (V→vi)"),
-]
-
-def cadence_of(c1: dict, c2: dict, tonic_pc: int) -> str | None:
-    d1 = (c1["root_pc"] - tonic_pc) % 12
-    d2 = (c2["root_pc"] - tonic_pc) % 12
-    for (a, b), name in CADENCES:
-        if d1 == a and d2 == b:
-            return name
-    if d2 == 7:
-        return "Половинная (…→V)"
-    return None
-
-
-# ── Main entry points ─────────────────────────────────────────────────────
-
-def _compress(parsed: list[tuple[dict, float]]) -> list[tuple[dict, float]]:
-    out: list[tuple[dict, float]] = []
-    for chord, dur in parsed:
-        if out and out[-1][0]["name"] == chord["name"]:
-            out[-1] = (out[-1][0], out[-1][1] + dur)
-        else:
-            out.append((chord, dur))
-    return out
-
-
-def _section_label(sections: list[dict] | None, chord: dict) -> str | None:
-    if not sections or chord.get("start_sec") is None:
-        return None
-    mid = (float(chord["start_sec"]) + float(chord.get("end_sec") or chord["start_sec"])) / 2
-    for section in sections:
-        if float(section["start_sec"]) <= mid < float(section["end_sec"]):
-            return section.get("label") or None
-    return None
-
-
-def analyze(
-    chords: list[dict],
-    key_hint: str = "",
-    sections: list[dict] | None = None,
-    bpm: float | None = None,
-) -> dict:
-    """chords: SongMaster style [{start_sec, end_sec, chord}] (timings optional)."""
-    parsed: list[tuple[dict, float]] = []
-    for item in chords:
-        chord = parse_chord(item.get("chord", ""))
-        if chord is None:
-            continue
-        dur = max(0.0, float(item.get("end_sec", 0)) - float(item.get("start_sec", 0))) or 1.0
-        chord = {**chord, "start_sec": item.get("start_sec"), "end_sec": item.get("end_sec")}
-        parsed.append((chord, dur))
-    parsed = _compress(parsed)
-    if len(parsed) < 2:
-        return {"error": "Недостаточно аккордов для анализа", "chord_count": len(parsed)}
-
-    seq = [c for c, _ in parsed]
-    durs = [d for _, d in parsed]
-
-    # песня во флэтах — называем ноты флэтами (Bb, а не A#)
-    flats = sum(1 for c in seq if "b" in c["root_name"])
-    sharps = sum(1 for c in seq if "#" in c["root_name"])
-    pc_names = PC_TO_FLAT if flats > sharps else PC_TO_SHARP
-
-    tonic = estimate_tonic(seq, durs)
-    tonic["name"] = pc_names[tonic["pc"]]
-    hint = parse_chord(key_hint) if key_hint else None
-    tonic["hint"] = key_hint or None
-    tonic["agrees_with_hint"] = bool(hint) and hint["root_pc"] == tonic["pc"]
-
-    tonic_pc, mode = tonic["pc"], tonic["mode"]
-
-    chords_out = []
-    for chord, dur in parsed:
-        chords_out.append({
-            "original": chord["original"],
-            "name": chord["name"],
-            "root": chord["root_name"],
-            "triad": chord["triad"],
-            "has_extensions": chord["has_extensions"],
-            "bass": pc_names[chord["bass_pc"]] if chord["bass_pc"] is not None else None,
-            "roman": roman_of(chord, tonic_pc),
-            "function": function_of(chord, tonic_pc, mode),
-            "midis": chord_midis_full(chord),
-            "duration_sec": round(dur, 2),
-            "start_sec": chord["start_sec"],
-            "end_sec": chord["end_sec"],
-            "section": _section_label(sections, chord),
-        })
-
-    transitions = [analyze_transition(seq[i], seq[i + 1]) for i in range(len(seq) - 1)]
-
-    mood_counts: Counter[int] = Counter()
-    for tr in transitions:
-        if tr["pair"]:
-            mood_counts[tr["pair"]["category"]] += 1
-    total_tr = len(transitions) or 1
-    mood_summary = [
-        {
-            "category": cat,
-            "category_name": CATEGORY_NAMES[cat],
-            "count": count,
-            "share": round(count / total_tr, 3),
-        }
-        for cat, count in mood_counts.most_common()
-    ]
-
-    ids = tuple((c["root_pc"], c["triad"]) for c in seq)
-    loop_entries = []
-    for loop in detect_loops(ids):
-        size = len(loop["ids"])
-        start = next(
-            i for i in range(len(ids) - size + 1)
-            if ids[i:i + size] == loop["ids"]
-        )
-        members = seq[start:start + size]
-        steps = [((c["root_pc"] - tonic_pc) % 12, c["triad"]) for c in members]
-        loop_entries.append({
-            "chords": [c["name"] for c in members],
-            "roman": " - ".join(roman_of(c, tonic_pc) for c in members),
-            "root_pcs": [c["root_pc"] for c in members],
-            "ids": [(c["root_pc"], c["triad"]) for c in members],
-            "start": start,
-            "count": loop["count"],
-            "matches": match_catalog(steps)[:3],
-        })
-    loop_entries = group_loop_families(loop_entries)
-
-    song_steps = [((c["root_pc"] - tonic_pc) % 12, c["triad"]) for c in seq]
-    catalog_matches = match_catalog(song_steps)[:12]
-
-    functions = [c["function"] for c in chords_out]
-    diatonic = sum(1 for f in functions if f)
-    share = diatonic / len(functions)
-    verdict = (
-        "тонально-функциональная" if share >= 0.85
-        else "смешанная" if share >= 0.5
-        else "модальная"
-    )
-    cadence = cadence_of(seq[-2], seq[-1], tonic_pc) if len(seq) >= 2 else None
-
-    unrecognized = {
-        "transitions": [
-            {"from": tr["from"], "to": tr["to"], "clock": tr["clock"], "approx": tr["approx"]}
-            for tr in transitions
-            if tr["pair"] is None and tr["move"] is None and not tr["same_root"]
-        ],
-        "loops": [loop for loop in loop_entries if not loop["matches"]],
-    }
-
-    return {
-        "tonic": tonic,
-        "bpm": round(float(bpm), 1) if bpm else None,
-        "chord_count": len(seq),
-        "chords": chords_out,
-        "transitions": transitions,
-        "mood_summary": mood_summary,
-        "loops": loop_entries,
-        "catalog_matches": catalog_matches,
-        "tfg": {
-            "diatonic_share": round(share, 3),
-            "verdict": verdict,
-            "final_cadence": cadence,
-        },
-        "unrecognized": unrecognized,
-    }
-
-
-def analyze_tokens(tokens: list[str], key_hint: str = "") -> dict:
-    """Convenience wrapper for plain chord token lists (tests, debugging)."""
-    return analyze([{"chord": t, "start_sec": 0, "end_sec": 0} for t in tokens], key_hint)
