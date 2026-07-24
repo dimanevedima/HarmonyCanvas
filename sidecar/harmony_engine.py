@@ -136,18 +136,15 @@ def compose_symbol(state: dict) -> str:
         if seventh == "maj": body += ("Maj" if base == "min" else "maj") + chord_type
         else: body += chord_type
     options = state.get("options") or []
-    # Altered tensions read clearer bracketed off the body: Fmaj13(#11), G7(b9).
-    tensions = {"b9", "#9", "#11", "b13"}
+    # Altered notes read clearer bracketed off the body: Fmaj13(#11), am11(b5b9b13).
+    # (This also disambiguates a bare b5 — `F(b5)` never reads as F-flat.)
+    tensions = {"b5", "#5", "b9", "#9", "#11", "b13"}
     marks = "".join(token for token in OPTION_IDS if token in options and token not in tensions)
     altered = "".join(token for token in OPTION_IDS if token in options and token in tensions)
-    root = state["root"]
-    if marks.startswith("b") and not body and len(root) == 1:
-        # `Fb5` would read as F-flat; parenthesise so the flat belongs to the fifth.
-        body = f"({marks})"
-    else:
-        body += marks
+    body += marks
     if altered:
         body += f"({altered})"
+    root = state["root"]
     bass = state.get("bass") or root
     return f"{root}{body}{'/' + bass if bass != root else ''}"
 
@@ -200,10 +197,14 @@ def _degree(root_pc: int, tonic_pc: int, intervals: list[int]) -> tuple[str, int
     if distance in intervals:
         index = intervals.index(distance)
         return ROMANS[index], index
-    closest = min(range(7), key=lambda i: min((distance - intervals[i]) % 12, (intervals[i] - distance) % 12))
-    delta = (distance - intervals[closest]) % 12
-    accidental = "#" if delta == 1 else "b" if delta == 11 else "•"
-    return accidental + ROMANS[closest], closest
+    # bII, bIII, bVI, bVII conventionally read as flats of the degree above; the
+    # rest (e.g. #IV) as sharps of the degree below — so the numeral agrees with
+    # how the chord itself is spelled (bIII, not #II).
+    if distance in {1, 3, 8, 10}:
+        above = next((i for i in range(7) if intervals[i] > distance), 0)
+        return "b" + ROMANS[above], above
+    below = next((i for i in range(6, -1, -1) if intervals[i] < distance), 6)
+    return "#" + ROMANS[below], below
 
 
 # Semitones above the target degree, plus the quality the secondary chord takes.
@@ -218,29 +219,42 @@ def _degree_interval(intervals: list[int], degree: int, step: int) -> int:
 
 # Each extension: the scale step above the root, its "plain" semitone value, and
 # the alteration mark the scale implies when the real tone lands off that value.
-EXTENSION_ALTS = {
-    9: (8, 2, {1: "b9", 3: "#9"}),
-    11: (10, 5, {6: "#11"}),
-    13: (12, 9, {8: "b13"}),
-}
+_EXT_STEP = {9: 8, 11: 10, 13: 12}
+_EXT_PLAIN = {9: 2, 11: 5, 13: 9}
+_EXT_ALT = {9: {1: "b9", 3: "#9"}, 11: {6: "#11"}, 13: {8: "b13"}}
+_EXT_LOWER = {13: "11", 11: "9", 9: "7"}
+_EXT_STACK = {"9": [9], "11": [9, 11], "13": [9, 11, 13]}
 
 
-def scale_extension_options(intervals: list[int], degree: int, chord_type: str) -> set[str]:
-    """Alteration marks a mode implies for a chord's tensions. A IV13 in C major
-    stacks a natural 11th that is a semitone sharp of F's perfect 11th, so it
-    reads as #11 (Fmaj13(#11)) — while the same shape in Dorian is a plain F13."""
-    top = TYPE_TOP.get(chord_type, 5)
+def spell_scale_tensions(intervals: list[int], degree: int, chord_type: str) -> tuple[str, set[str]]:
+    """The chord type a mode's tensions actually spell, plus their alteration
+    marks. A top extension the scale alters demotes the type and becomes a mark
+    (phrygian i9 -> m7(b9), dorian ii13 -> m11(b9,b13)); an inner one just adds a
+    mark (IV13 in C major -> maj13(#11))."""
+    tensions = list(_EXT_STACK.get(chord_type, []))
+    if not tensions:
+        return chord_type, set()
+
+    def mark_of(extension: int) -> str | None:
+        value = _degree_interval(intervals, degree, _EXT_STEP[extension])
+        return _EXT_ALT[extension].get(value) if value != _EXT_PLAIN[extension] else None
+
     marks: set[str] = set()
-    for extension, (step, plain, alt_map) in EXTENSION_ALTS.items():
-        # Only the tensions *below* the named top extension are spelled as marks
-        # (#11 inside a 13th). Altering the top extension itself would need the
-        # chord renamed to a lower type, which is left to the manual editor.
-        if extension >= top:
-            continue
-        value = _degree_interval(intervals, degree, step)
-        if value != plain and value in alt_map:
-            marks.add(alt_map[value])
-    return marks
+    effective = chord_type
+    # Demote while the current top tension is altered — an altered top can't be
+    # named "13"/"11"/"9", it becomes the type below plus a b/# mark.
+    while tensions:
+        mark = mark_of(tensions[-1])
+        if mark is None:
+            break
+        marks.add(mark)
+        effective = _EXT_LOWER[tensions.pop()]
+    # Inner tensions below the named top just contribute their marks.
+    for extension in tensions[:-1]:
+        inner = mark_of(extension)
+        if inner:
+            marks.add(inner)
+    return effective, marks
 
 
 def degree_state(tonic_pc: int, intervals: list[int], degree: int, flats: bool, template: dict | None = None) -> dict:
@@ -251,7 +265,9 @@ def degree_state(tonic_pc: int, intervals: list[int], degree: int, flats: bool, 
     than a fixed row of triads.
     """
     template = template or {}
-    names = PC_FLAT if flats else PC_SHARP
+    # bII/bIII/bVI/bVII always read as flats (mixolydian's b7 is Bb, not A#),
+    # on top of whatever the mode's key signature already prefers.
+    names = PC_FLAT if flats or intervals[degree] in {1, 3, 8, 10} else PC_SHARP
     root_pc = (tonic_pc + intervals[degree]) % 12
     third = _degree_interval(intervals, degree, 2)
     fifth = _degree_interval(intervals, degree, 4)
@@ -269,7 +285,6 @@ def degree_state(tonic_pc: int, intervals: list[int], degree: int, flats: bool, 
         base = "min"    # the flat five already supplies the diminished fifth
     elif base == "aug" and "#5" in wanted:
         base = "maj"
-    available = option_availability(chord_type, template.get("inversion"))
     quality_seventh = {11: "maj", 10: "dom", 9: "dim"}.get(seventh, "dom")
     secondary = template.get("secondary")
     if secondary in SECONDARY_STEPS:
@@ -285,10 +300,14 @@ def degree_state(tonic_pc: int, intervals: list[int], degree: int, flats: bool, 
         base, quality_seventh = secondary_base, secondary_seventh
         wanted = {item for item in wanted if item not in {"b5", "#5"}}
     else:
-        # A diatonic 9/11/13 borrows its tensions from the mode, so a raised or
-        # lowered scale tone is spelled (#11, b9, b13…) instead of silently
-        # flattened to the plain extension.
-        wanted |= scale_extension_options(intervals, degree, chord_type)
+        # A diatonic 9/11/13 borrows its tensions from the mode: an altered top
+        # tension renames the chord (i9 -> m7(b9)) and inner ones add marks. Each
+        # degree derives its own tensions, so a carried #11 doesn't smear across
+        # the whole palette.
+        wanted -= {"b9", "#9", "#11", "b13"}
+        chord_type, ext_marks = spell_scale_tensions(intervals, degree, chord_type)
+        wanted |= ext_marks
+    available = option_availability(chord_type, template.get("inversion"))
     state = {
         "root": names[root_pc], "base": base,
         "type": chord_type,
@@ -818,13 +837,16 @@ def apply_chord_edit(chord_input: str, *, index: int, op: str, value: str = "", 
         elif state.get("seventh") is None:
             # Follow the mode, the way a diatonic seventh would be spelled here.
             state["seventh"] = "dim" if state["base"] == "dim" else "maj" if _mode_seventh_is_major(intervals, degree) else "dom"
-        kept = [item for item in state["options"] if option_availability(state["type"]).get(item)]
         if (chord["root_pc"] - tonic_pc) % 12 in intervals:
-            # Diatonic root: spell the tensions the mode implies (e.g. IV13 in
-            # major gains its #11), replacing any stale auto-marks.
-            merged = (set(kept) - {"b9", "#9", "#11", "b13"}) | scale_extension_options(intervals, degree, state["type"])
-            kept = [item for item in OPTION_IDS if item in merged and option_availability(state["type"]).get(item)]
-        state["options"] = kept
+            # Diatonic root: spell the tensions the mode implies. An altered top
+            # tension demotes the type (i9 -> m7(b9)); inner ones add marks.
+            state["type"], ext_marks = spell_scale_tensions(intervals, degree, state["type"])
+            if state["type"] == "triad":
+                state["seventh"] = None
+            merged = (set(state["options"]) - {"b9", "#9", "#11", "b13"}) | ext_marks
+            state["options"] = [item for item in OPTION_IDS if item in merged and option_availability(state["type"]).get(item)]
+        else:
+            state["options"] = [item for item in state["options"] if option_availability(state["type"]).get(item)]
     elif op == "quality":
         state["base"] = value if value in BASE_TRIAD else "maj"
         if state["type"] != "triad" and state["base"] == "dim" and state.get("seventh") == "dom":
@@ -945,15 +967,18 @@ def analyze_sketch(*, chord_input: str, tonic: str, mode: str, melody: list[dict
     palette_key = (palette_mode or mode_key).lower()
     palette_intervals = MODE_INTERVALS.get(palette_key, intervals)
     borrowed = palette_key != mode_key
+    # Spell the palette in the borrowed mode's own key signature: C Dorian is two
+    # flats (Eb, Bb), not D#/A#, even when the home key is a sharp/natural one.
+    palette_flats = _prefers_flats(tonic, tonic_pc, palette_key)
     diatonic_palette = []
     secondary_label = {"V": "V", "IV": "IV", "vii": "vii°"}.get(template.get("secondary"))
     for degree in range(7):
-        state = degree_state(tonic_pc, palette_intervals, degree, flats, template)
+        state = degree_state(tonic_pc, palette_intervals, degree, palette_flats, template)
         symbol = compose_symbol(state)
         parsed = parse_chord(symbol)
         if secondary_label:
             # A secondary is named after what it points at: vii°/ii, not vii°.
-            target = degree_state(tonic_pc, palette_intervals, degree, flats, {**template, "secondary": None})
+            target = degree_state(tonic_pc, palette_intervals, degree, palette_flats, {**template, "secondary": None})
             target_parsed = parse_chord(compose_symbol(target))
             target_roman = _degree(target_parsed["root_pc"], tonic_pc, intervals)[0] if borrowed and target_parsed else ROMANS[degree]
             label = f"{secondary_label}/{_quality_roman(target_roman, target_parsed) if target_parsed else target_roman}"
