@@ -733,6 +733,17 @@ def apply_chord_edit(chord_input: str, *, index: int, op: str, value: str = "", 
     if op == "reset":
         tokens[index] = _diatonic_chord(tonic_pc, intervals, degree, flats)
         return result(index)
+    if op == "root":
+        # Move the chord to any root, keeping its type/extensions; land in root
+        # position so picking a new tonic is predictable.
+        match = re.match(r"^([A-Ga-g])([#b]?)$", str(value).strip())
+        if not match or _root_pc(match.group(1).upper() + match.group(2)) is None:
+            return result(index)
+        new_root = match.group(1).upper() + match.group(2)
+        state["root"] = new_root
+        state["bass"] = new_root
+        tokens[index] = compose_symbol(state)
+        return result(index)
     if op == "borrow":
         # Borrowing swaps the mode the degree is read in; it must not throw away
         # the type, the extensions or the inversion the chord already had.

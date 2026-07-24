@@ -5034,6 +5034,21 @@ function labNoteInspectorHtml(advice) {
     <div class="lab-inspector-actions"><button type="button" class="danger" onclick="labNoteEdit('delete',{index:${index}})">Удалить ноту</button></div>`;
 }
 
+const LAB_NOTE_PC = { C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 };
+
+/** Twelve roots in the key's own spelling, current root pre-selected by pitch. */
+function labRootOptions(currentRoot) {
+  const sharp = window.labTonicSpelling === "sharp";
+  const roots = sharp
+    ? ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+    : ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+  const currentPc = LAB_NOTE_PC[currentRoot];
+  return roots.map(name => {
+    const label = name.replace("#", "♯").replace("b", "♭");
+    return `<option value="${name}" ${LAB_NOTE_PC[name] === currentPc ? "selected" : ""}>${label}</option>`;
+  }).join("");
+}
+
 function labChordInspectorHtml(advice) {
   const index = window.labSelectedChordIndex;
   const chord = labSelectedChord(advice);
@@ -5052,6 +5067,8 @@ function labChordInspectorHtml(advice) {
     return `<label class="${enabled ? "" : "is-disabled"}"><input type="checkbox" ${options.has(value) ? "checked" : ""} ${enabled ? "" : "disabled"} onchange="labEdit('option','${value}:'+(this.checked?1:0))"><span>${label}</span></label>`;
   }).join("");
   return `<div class="lab-inspector-head"><div><small>CHORD PROPERTIES</small><strong>${esc(chord.symbol)} <i>${esc(chord.degree)}</i></strong></div><button type="button" onclick="labPlay([[${chord.midi.join(",")}]],this)" aria-label="Проиграть аккорд">▶</button></div>
+    <div class="lab-property-title"><span>Тоника аккорда</span></div>
+    <label class="lab-borrow-label lab-root-field"><select onchange="labEdit('root',this.value)" aria-label="Корень аккорда">${labRootOptions(state.root)}</select></label>
     <div class="lab-property-title"><span>Type</span><button type="button" onclick="labEdit('reset')">Reset</button></div>${labSegments([["triad", "Triad"], ["7", "7"], ["9", "9"], ["11", "11"], ["13", "13"]], state.type || "triad", "type")}
     <div class="lab-property-title"><span>Quality</span></div>${labSegments([["maj", "Maj"], ["min", "Min"], ["dim", "Dim"], ["aug", "Aug"]], state.base || "maj", "quality")}
     ${seventhRow}
